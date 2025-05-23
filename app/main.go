@@ -26,6 +26,11 @@ func main() {
 			os.Exit(0)
 		}
 
+		if len(command) >= 5 && command[:5] == "echo " {
+			fmt.Println(command[5:])
+			continue
+		}
+
 		fmt.Println(command + ": command not found")
 	}
 }
