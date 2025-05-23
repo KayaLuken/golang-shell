@@ -21,9 +21,11 @@ func main() {
 		}
 		// Remove trailing newline
 		command = command[:len(command)-1]
-		if command == "exit" {
+
+		if command == "exit" || command == "exit 0" {
 			os.Exit(0)
 		}
+
 		fmt.Println(command + ": command not found")
 	}
 }
