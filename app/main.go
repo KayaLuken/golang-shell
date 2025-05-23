@@ -4,11 +4,25 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 )
 
 // Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
 var _ = fmt.Fprint
+
+// findExecutable searches for an executable in the PATH and returns its full path if found, or an empty string if not found.
+func findExecutable(cmd string) string {
+	pathEnv := os.Getenv("PATH")
+	paths := strings.Split(pathEnv, string(os.PathListSeparator))
+	for _, dir := range paths {
+		fullPath := dir + string(os.PathSeparator) + cmd
+		if _, err := os.Stat(fullPath); err == nil {
+			return fullPath
+		}
+	}
+	return ""
+}
 
 func main() {
 	// Whitelist of valid builtins
@@ -50,23 +64,30 @@ func main() {
 			if builtins[arg] {
 				fmt.Printf("%s is a shell builtin\n", arg)
 			} else {
-				// Check PATH for executable
-				pathEnv := os.Getenv("PATH")
-				paths := strings.Split(pathEnv, string(os.PathListSeparator))
-				found := false
-				for _, dir := range paths {
-					fullPath := dir + string(os.PathSeparator) + arg
-					if _, err := os.Stat(fullPath); err == nil {
-						fmt.Printf("%s is %s\n", arg, fullPath)
-						found = true
-						break
-					}
-				}
-				if !found {
+				fullPath := findExecutable(arg)
+				if fullPath != "" {
+					fmt.Printf("%s is %s\n", arg, fullPath)
+				} else {
 					fmt.Printf("%s: not found\n", arg)
 				}
 			}
 			continue
+		}
+
+		// Try to execute external command if found in PATH
+		tokens := strings.Fields(command)
+		if len(tokens) > 0 {
+			exe := findExecutable(tokens[0])
+			if exe != "" {
+				cmd := exec.Command(exe, tokens[1:]...)
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+				cmd.Stdin = os.Stdin
+				if err := cmd.Run(); err != nil {
+					fmt.Fprintf(os.Stderr, "%s: %v\n", tokens[0], err)
+				}
+				continue
+			}
 		}
 
 		fmt.Println(command + ": command not found")
