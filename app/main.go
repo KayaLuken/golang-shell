@@ -3,13 +3,21 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"os"
+	"os",
+	"strings"
 )
 
 // Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
 var _ = fmt.Fprint
 
 func main() {
+	// Whitelist of valid builtins
+	builtins := map[string]bool{
+		"exit": true,
+		"echo": true,
+		"type": true,
+	}
+
 	for {
 		fmt.Fprint(os.Stdout, "$ ")
 
@@ -28,6 +36,22 @@ func main() {
 
 		if len(command) >= 5 && command[:5] == "echo " {
 			fmt.Println(command[5:])
+			continue
+		}
+
+		// Handle "type" command
+		if len(command) >= 5 && command[:5] == "type " {
+			tokens := strings.Fields(command)
+			if len(tokens) != 2 {
+				fmt.Println("type: too many arguments")
+				continue
+			}
+			arg := tokens[1]
+			if builtins[arg] {
+				fmt.Printf("%s is a shell builtin\n", arg)
+			} else {
+				fmt.Printf("%s: not found\n", arg)
+			}
 			continue
 		}
 
