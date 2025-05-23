@@ -50,7 +50,21 @@ func main() {
 			if builtins[arg] {
 				fmt.Printf("%s is a shell builtin\n", arg)
 			} else {
-				fmt.Printf("%s: not found\n", arg)
+				// Check PATH for executable
+				pathEnv := os.Getenv("PATH")
+				paths := strings.Split(pathEnv, string(os.PathListSeparator))
+				found := false
+				for _, dir := range paths {
+					fullPath := dir + string(os.PathSeparator) + arg
+					if _, err := os.Stat(fullPath); err == nil {
+						fmt.Printf("%s is %s\n", arg, fullPath)
+						found = true
+						break
+					}
+				}
+				if !found {
+					fmt.Printf("%s: not found\n", arg)
+				}
 			}
 			continue
 		}
