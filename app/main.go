@@ -62,6 +62,15 @@ func main() {
 				continue
 			}
 			arg := tokens[1]
+			// Handle tilde as home directory
+			if arg == "~" {
+				home, err := os.UserHomeDir()
+				if err != nil {
+					fmt.Println("cd: cannot determine home directory")
+					continue
+				}
+				arg = home
+			}
 			absPath, err := os.Stat(arg)
 			if err != nil || !absPath.IsDir() {
 				fmt.Printf("cd: %s: No such file or directory\n", arg)
