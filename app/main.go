@@ -72,12 +72,12 @@ func main() {
 				fmt.Printf("cd: %s no such working directory\n", arg)
 				continue
 			}
+			// Print absolute path only, no extra prompt
 			cwd, err := os.Getwd()
-			if err != nil {
-				fmt.Printf("cd: error getting cwd\n")
-			} else {
-				fmt.Println(cwd)
+			if err == nil {
+				fmt.Print(cwd)
 			}
+			// No extra newline or prompt here
 			continue
 		}
 
