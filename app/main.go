@@ -25,18 +25,32 @@ func findExecutable(cmd string) string {
 	return ""
 }
 
-// Helper to split command line with single quote support
-func splitArgs(input string) []string {
+// Helper to split command line with single quote support (concatenates adjacent quoted args)
+func parseQuotes(command string) []string {
 	var args []string
-	re := regexp.MustCompile(`'[^']*'|\S+`)
-	matches := re.FindAllString(input, -1)
-	for _, m := range matches {
-		// Remove single quotes if present
-		if len(m) >= 2 && m[0] == '\'' && m[len(m)-1] == '\'' {
-			args = append(args, m[1:len(m)-1])
-		} else {
-			args = append(args, m)
+	var buf strings.Builder
+	inQuotes := false
+
+	for i := 0; i < len(command); i++ {
+		c := command[i]
+
+		switch c {
+		case '\'':
+			inQuotes = !inQuotes // toggle
+		case ' ':
+			if inQuotes {
+				buf.WriteByte(c)
+			} else if buf.Len() > 0 {
+				args = append(args, buf.String())
+				buf.Reset()
+			}
+		default:
+			buf.WriteByte(c)
 		}
+	}
+
+	if buf.Len() > 0 {
+		args = append(args, buf.String())
 	}
 	return args
 }
@@ -68,8 +82,8 @@ func main() {
 		}
 
 		if len(command) >= 5 && command[:5] == "echo " {
-			// Use splitArgs to handle single quotes
-			args := splitArgs(command[5:])
+			// Use parseQuotes to handle single quotes and adjacent quoted args
+			args := parseQuotes(command[5:])
 			fmt.Println(strings.Join(args, " "))
 			continue
 		}
@@ -135,7 +149,7 @@ func main() {
 		}
 
 		// Try to execute external command if found in PATH
-		tokens := splitArgs(command)
+		tokens := parseQuotes(command)
 		if len(tokens) > 0 {
 			exe := findExecutable(tokens[0])
 			if exe != "" {
