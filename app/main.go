@@ -72,11 +72,6 @@ func main() {
 				fmt.Printf("cd: %s no such working directory\n", arg)
 				continue
 			}
-			// Print absolute path only, with a newline
-			cwd, err := os.Getwd()
-			if err == nil {
-				fmt.Println(cwd)
-			}
 			continue
 		}
 
