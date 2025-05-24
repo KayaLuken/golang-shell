@@ -30,6 +30,7 @@ func main() {
 		"exit": true,
 		"echo": true,
 		"type": true,
+		"pwd":  true,
 	}
 
 	for {
