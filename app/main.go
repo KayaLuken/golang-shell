@@ -31,6 +31,7 @@ func main() {
 		"echo": true,
 		"type": true,
 		"pwd":  true,
+		"cd":   true,
 	}
 
 	for {
@@ -51,6 +52,32 @@ func main() {
 
 		if len(command) >= 5 && command[:5] == "echo " {
 			fmt.Println(command[5:])
+			continue
+		}
+
+		if len(command) >= 3 && command[:3] == "cd " {
+			tokens := strings.Fields(command)
+			if len(tokens) != 2 {
+				fmt.Println("cd: too many arguments")
+				continue
+			}
+			arg := tokens[1]
+			absPath, err := os.Stat(arg)
+			if err != nil || !absPath.IsDir() {
+				fmt.Printf("cd: %s no such working directory\n", arg)
+				continue
+			}
+			// Change directory
+			if err := os.Chdir(arg); err != nil {
+				fmt.Printf("cd: %s no such working directory\n", arg)
+				continue
+			}
+			cwd, err := os.Getwd()
+			if err != nil {
+				fmt.Printf("cd: error getting cwd\n")
+			} else {
+				fmt.Println(cwd)
+			}
 			continue
 		}
 
