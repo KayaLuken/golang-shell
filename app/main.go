@@ -80,6 +80,7 @@ func main() {
 			exe := findExecutable(tokens[0])
 			if exe != "" {
 				cmd := exec.Command(exe, tokens[1:]...)
+				cmd.Args[0] = tokens[0]
 				cmd.Stdout = os.Stdout
 				cmd.Stderr = os.Stderr
 				cmd.Stdin = os.Stdin
