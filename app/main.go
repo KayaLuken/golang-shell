@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 )
 
@@ -22,6 +23,22 @@ func findExecutable(cmd string) string {
 		}
 	}
 	return ""
+}
+
+// Helper to split command line with single quote support
+func splitArgs(input string) []string {
+	var args []string
+	re := regexp.MustCompile(`'[^']*'|\S+`)
+	matches := re.FindAllString(input, -1)
+	for _, m := range matches {
+		// Remove single quotes if present
+		if len(m) >= 2 && m[0] == '\'' && m[len(m)-1] == '\'' {
+			args = append(args, m[1:len(m)-1])
+		} else {
+			args = append(args, m)
+		}
+	}
+	return args
 }
 
 func main() {
@@ -51,7 +68,9 @@ func main() {
 		}
 
 		if len(command) >= 5 && command[:5] == "echo " {
-			fmt.Println(command[5:])
+			// Use splitArgs to handle single quotes
+			args := splitArgs(command[5:])
+			fmt.Println(strings.Join(args, " "))
 			continue
 		}
 
@@ -116,7 +135,7 @@ func main() {
 		}
 
 		// Try to execute external command if found in PATH
-		tokens := strings.Fields(command)
+		tokens := splitArgs(command)
 		if len(tokens) > 0 {
 			exe := findExecutable(tokens[0])
 			if exe != "" {
