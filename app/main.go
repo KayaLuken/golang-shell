@@ -64,12 +64,12 @@ func main() {
 			arg := tokens[1]
 			absPath, err := os.Stat(arg)
 			if err != nil || !absPath.IsDir() {
-				fmt.Printf("cd: %s no such working directory\n", arg)
+				fmt.Printf("cd: %s No such file or directory\n", arg)
 				continue
 			}
 			// Change directory
 			if err := os.Chdir(arg); err != nil {
-				fmt.Printf("cd: %s no such working directory\n", arg)
+				fmt.Printf("cd: %s No such file or directory\n", arg)
 				continue
 			}
 			continue
