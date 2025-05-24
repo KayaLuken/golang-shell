@@ -53,6 +53,16 @@ func main() {
 			continue
 		}
 
+		if command == "pwd" {
+			cwd, err := os.Getwd()
+			if err != nil {
+				fmt.Printf("pwd: %v\n", err)
+			} else {
+				fmt.Println(cwd)
+			}
+			continue
+		}
+
 		// Handle "type" command
 		if len(command) >= 5 && command[:5] == "type " {
 			tokens := strings.Fields(command)
