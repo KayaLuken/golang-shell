@@ -226,9 +226,6 @@ func main() {
 					args := tokens[1:redirectIdx]
 					err = runExternalCommand(exe, args, outFile)
 					outFile.Close()
-					if err != nil {
-						fmt.Fprintf(os.Stderr, "%s: %v\n", tokens[0], err)
-					}
 					continue
 				}
 			}
@@ -236,10 +233,7 @@ func main() {
 			// External command (no redirection)
 			exe := findExecutable(tokens[0])
 			if exe != "" {
-				err := runExternalCommand(exe, tokens[1:], nil)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "%s: %v\n", tokens[0], err)
-				}
+				_ = runExternalCommand(exe, tokens[1:], nil)
 				continue
 			}
 		}
