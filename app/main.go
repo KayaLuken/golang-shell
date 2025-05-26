@@ -192,16 +192,25 @@ func main() {
 		// Try to execute external command if found in PATH
 		tokens := parseQuotes(command)
 		if len(tokens) > 0 {
-			// Output redirection: <cmd> > <file> or <cmd> 1> <file>
-			if len(tokens) == 3 && (tokens[1] == ">" || tokens[1] == "1>") {
+			// Output redirection: <cmd> ... > <file> or <cmd> ... 1> <file>
+			redirectIdx := -1
+			for i, t := range tokens {
+				if t == ">" || t == "1>" {
+					redirectIdx = i
+					break
+				}
+			}
+			if redirectIdx != -1 && redirectIdx+1 < len(tokens) {
 				exe := findExecutable(tokens[0])
 				if exe != "" {
-					outFile, err := os.Create(tokens[2])
+					outFile, err := os.Create(tokens[redirectIdx+1])
 					if err != nil {
-						fmt.Fprintf(os.Stderr, "Could not open file: %v\n", err)
+						fmt.Fprintf(os.Stderr, "%s: %v\n", tokens[redirectIdx+1], err)
 						continue
 					}
-					err = runExternalCommand(exe, []string{}, outFile)
+					// Pass all args before the redirection operator
+					args := tokens[1:redirectIdx]
+					err = runExternalCommand(exe, args, outFile)
 					outFile.Close()
 					if err != nil {
 						fmt.Fprintf(os.Stderr, "%s: %v\n", tokens[0], err)
