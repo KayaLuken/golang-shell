@@ -122,13 +122,6 @@ func main() {
 			os.Exit(0)
 		}
 
-		if len(command) >= 5 && command[:5] == "echo " {
-			// Use parseQuotes to handle single quotes and adjacent quoted args
-			args := parseQuotes(command[5:])
-			fmt.Println(strings.Join(args, " "))
-			continue
-		}
-
 		if len(command) >= 3 && command[:3] == "cd " {
 			tokens := strings.Fields(command)
 			if len(tokens) != 2 {
@@ -189,7 +182,7 @@ func main() {
 			continue
 		}
 
-		// Try to execute external command if found in PATH
+		// Try to execute external command or echo, with or without redirection
 		tokens := parseQuotes(command)
 		if len(tokens) > 0 {
 			// Output redirection: <cmd> ... > <file> or <cmd> ... 1> <file>
@@ -200,6 +193,28 @@ func main() {
 					break
 				}
 			}
+
+			// Handle echo with or without output redirection
+			if tokens[0] == "echo" {
+				var out *os.File = os.Stdout
+				var args []string
+				if redirectIdx != -1 && redirectIdx+1 < len(tokens) {
+					f, err := os.Create(tokens[redirectIdx+1])
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "%s: %v\n", tokens[redirectIdx+1], err)
+						continue
+					}
+					out = f
+					args = tokens[1:redirectIdx]
+					defer out.Close()
+				} else {
+					args = tokens[1:]
+				}
+				fmt.Fprintln(out, strings.Join(args, " "))
+				continue
+			}
+
+			// External command with output redirection
 			if redirectIdx != -1 && redirectIdx+1 < len(tokens) {
 				exe := findExecutable(tokens[0])
 				if exe != "" {
@@ -208,7 +223,6 @@ func main() {
 						fmt.Fprintf(os.Stderr, "%s: %v\n", tokens[redirectIdx+1], err)
 						continue
 					}
-					// Pass all args before the redirection operator
 					args := tokens[1:redirectIdx]
 					err = runExternalCommand(exe, args, outFile)
 					outFile.Close()
@@ -219,6 +233,7 @@ func main() {
 				}
 			}
 
+			// External command (no redirection)
 			exe := findExecutable(tokens[0])
 			if exe != "" {
 				err := runExternalCommand(exe, tokens[1:], nil)
