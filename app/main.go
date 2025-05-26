@@ -36,21 +36,30 @@ func parseQuotes(input string) []string {
 	for i := 0; i < len(input); i++ {
 		c := input[i]
 
-		switch c {
+		switch ch {
 		case '\'':
-			inSingle = !inSingle
+			if !inDoubleQuotes {
+				inSingleQuotes = !inSingleQuotes
+			} else {
+				buf.WriteByte(ch)
+			}
 		case '"':
-			inDouble = !inDouble
-		case ' ', '\t':
-			if inSingle || inDouble {
-				buf.WriteByte(c)
+			if !inSingleQuotes {
+				inDoubleQuotes = !inDoubleQuotes
+			} else {
+				buf.WriteByte(ch)
+			}
+		case ' ':
+			if inSingleQuotes || inDoubleQuotes {
+				buf.WriteByte(ch)
 			} else if buf.Len() > 0 {
-				args = append(args, buf.String())
+				tokens = append(tokens, buf.String())
 				buf.Reset()
 			}
 		default:
-			buf.WriteByte(c)
+			buf.WriteByte(ch)
 		}
+
 	}
 
 	if buf.Len() > 0 {
