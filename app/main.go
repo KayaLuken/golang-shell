@@ -82,6 +82,20 @@ func parseQuotes(input string) []string {
 	return args
 }
 
+// Helper to run an external command with optional output redirection
+func runExternalCommand(exe string, args []string, stdoutOverride *os.File) error {
+	cmd := exec.Command(exe, args...)
+	cmd.Args[0] = exe
+	if stdoutOverride != nil {
+		cmd.Stdout = stdoutOverride
+	} else {
+		cmd.Stdout = os.Stdout
+	}
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
+}
+
 func main() {
 	// Whitelist of valid builtins
 	builtins := map[string]bool{
@@ -178,14 +192,28 @@ func main() {
 		// Try to execute external command if found in PATH
 		tokens := parseQuotes(command)
 		if len(tokens) > 0 {
+			// Output redirection: <cmd> > <file> or <cmd> 1> <file>
+			if len(tokens) == 3 && (tokens[1] == ">" || tokens[1] == "1>") {
+				exe := findExecutable(tokens[0])
+				if exe != "" {
+					outFile, err := os.Create(tokens[2])
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "Could not open file: %v\n", err)
+						continue
+					}
+					err = runExternalCommand(exe, []string{}, outFile)
+					outFile.Close()
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "%s: %v\n", tokens[0], err)
+					}
+					continue
+				}
+			}
+
 			exe := findExecutable(tokens[0])
 			if exe != "" {
-				cmd := exec.Command(exe, tokens[1:]...)
-				cmd.Args[0] = tokens[0]
-				cmd.Stdout = os.Stdout
-				cmd.Stderr = os.Stderr
-				cmd.Stdin = os.Stdin
-				if err := cmd.Run(); err != nil {
+				err := runExternalCommand(exe, tokens[1:], nil)
+				if err != nil {
 					fmt.Fprintf(os.Stderr, "%s: %v\n", tokens[0], err)
 				}
 				continue
