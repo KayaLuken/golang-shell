@@ -34,7 +34,7 @@ func parseQuotes(input string) []string {
 	inSingleQuotes, inDoubleQuotes := false, false
 
 	for i := 0; i < len(input); i++ {
-		c := input[i]
+		ch := input[i]
 
 		switch ch {
 		case '\'':
