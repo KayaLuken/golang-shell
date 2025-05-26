@@ -31,7 +31,7 @@ func findExecutable(cmd string) string {
 func parseQuotes(input string) []string {
 	var args []string
 	var buf strings.Builder
-	inSingle, inDouble := false, false
+	inSingleQuotes, inDoubleQuotes := false, false
 
 	for i := 0; i < len(input); i++ {
 		c := input[i]
