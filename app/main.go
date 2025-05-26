@@ -224,7 +224,7 @@ func main() {
 						continue
 					}
 					args := tokens[1:redirectIdx]
-					err = runExternalCommand(exe, args, outFile)
+					err = runExternalCommand(exe, tokens[:redirectIdx], outFile)
 					outFile.Close()
 					continue
 				}
@@ -233,7 +233,7 @@ func main() {
 			// External command (no redirection)
 			exe := findExecutable(tokens[0])
 			if exe != "" {
-				_ = runExternalCommand(exe, tokens[1:], nil)
+				_ = runExternalCommand(exe, tokens, nil)
 				continue
 			}
 		}
