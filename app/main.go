@@ -83,9 +83,9 @@ func parseQuotes(input string) []string {
 }
 
 // Helper to run an external command with optional output redirection
-func runExternalCommand(exe string, args []string, stdoutOverride *os.File) error {
-	cmd := exec.Command(exe, args...)
-	cmd.Args[0] = exe
+func runExternalCommand(exe string, tokens []string, stdoutOverride *os.File) error {
+	cmd := exec.Command(exe, tokens[1:]...)
+	cmd.Args[0] = tokens[0] // Use the user-typed command
 	if stdoutOverride != nil {
 		cmd.Stdout = stdoutOverride
 	} else {
