@@ -47,7 +47,16 @@ func parseQuotes(input string) []string {
 				buf.WriteByte(ch)
 			}
 		case '\\':
-			if !inSingleQuotes && !inDoubleQuotes && i+1 < len(input) {
+			if inDoubleQuotes && i+1 < len(input) {
+				next := input[i+1]
+				// Only escape \, $, " or newline inside double quotes
+				if next == '\\' || next == '$' || next == '"' || next == '\n' {
+					i++
+					buf.WriteByte(next)
+				} else {
+					buf.WriteByte(ch)
+				}
+			} else if !inSingleQuotes && !inDoubleQuotes && i+1 < len(input) {
 				i++
 				buf.WriteByte(input[i])
 			} else {
