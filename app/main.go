@@ -223,7 +223,6 @@ func main() {
 						fmt.Fprintf(os.Stderr, "%s: %v\n", tokens[redirectIdx+1], err)
 						continue
 					}
-					args := tokens[1:redirectIdx]
 					err = runExternalCommand(exe, tokens[:redirectIdx], outFile)
 					outFile.Close()
 					continue
