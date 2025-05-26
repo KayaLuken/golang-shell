@@ -46,6 +46,13 @@ func parseQuotes(input string) []string {
 			} else {
 				buf.WriteByte(ch)
 			}
+		case '\\':
+			if !inSingleQuotes && !inDoubleQuotes && i+1 < len(input) {
+				i++
+				buf.WriteByte(input[i])
+			} else {
+				buf.WriteByte(ch)
+			}
 		case ' ':
 			if inSingleQuotes || inDoubleQuotes {
 				buf.WriteByte(ch)
