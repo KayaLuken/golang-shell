@@ -25,9 +25,6 @@ func findExecutable(cmd string) string {
 }
 
 // Helper to split command line with single quote support (concatenates adjacent quoted args)
-
-
-
 func parseQuotes(input string) []string {
 	var args []string
 	var buf strings.Builder
@@ -53,7 +50,7 @@ func parseQuotes(input string) []string {
 			if inSingleQuotes || inDoubleQuotes {
 				buf.WriteByte(ch)
 			} else if buf.Len() > 0 {
-				tokens = append(tokens, buf.String())
+				args = append(args, buf.String())
 				buf.Reset()
 			}
 		default:
@@ -68,7 +65,6 @@ func parseQuotes(input string) []string {
 
 	return args
 }
-
 
 func main() {
 	// Whitelist of valid builtins
