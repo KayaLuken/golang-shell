@@ -96,6 +96,30 @@ func runExternalCommand(exe string, tokens []string, stdoutOverride *os.File) er
 	return cmd.Run()
 }
 
+// Helper function to handle output redirection
+func handleOutputRedirection(tokens []string, redirectIdx int) (*os.File, error) {
+	if redirectIdx != -1 && redirectIdx+1 < len(tokens) {
+		f, err := os.Create(tokens[redirectIdx+1])
+		if err != nil {
+			return nil, fmt.Errorf("%s: %v", tokens[redirectIdx+1], err)
+		}
+		return f, nil
+	}
+	return os.Stdout, nil
+}
+
+// Helper function to handle error redirection
+func handleErrorRedirection(tokens []string, errorRedirectIdx int) (*os.File, error) {
+	if errorRedirectIdx != -1 && errorRedirectIdx+1 < len(tokens) {
+		f, err := os.Create(tokens[errorRedirectIdx+1])
+		if err != nil {
+			return nil, fmt.Errorf("%s: %v", tokens[errorRedirectIdx+1], err)
+		}
+		return f, nil
+	}
+	return os.Stderr, nil
+}
+
 func main() {
 	// Whitelist of valid builtins
 	builtins := map[string]bool{
@@ -185,58 +209,72 @@ func main() {
 		// Try to execute external command or echo, with or without redirection
 		tokens := parseQuotes(command)
 		if len(tokens) > 0 {
-			// Output redirection: <cmd> ... > <file> or <cmd> ... 1> <file>
 			redirectIdx := -1
+			errorRedirectIdx := -1
 			for i, t := range tokens {
 				if t == ">" || t == "1>" {
 					redirectIdx = i
+					break
+				} else if t == "2>" {
+					errorRedirectIdx = i
 					break
 				}
 			}
 
 			// Handle echo with or without output redirection
 			if tokens[0] == "echo" {
-				var out *os.File = os.Stdout
-				var args []string
-				if redirectIdx != -1 && redirectIdx+1 < len(tokens) {
-					f, err := os.Create(tokens[redirectIdx+1])
-					if err != nil {
-						fmt.Fprintf(os.Stderr, "%s: %v\n", tokens[redirectIdx+1], err)
-						continue
-					}
-					out = f
-					args = tokens[1:redirectIdx]
-					defer out.Close()
-				} else {
-					args = tokens[1:]
+				out, err := handleOutputRedirection(tokens, redirectIdx)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					continue
 				}
+				defer out.Close()
+
+				errOut, err := handleErrorRedirection(tokens, errorRedirectIdx)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					continue
+				}
+				defer errOut.Close()
+
+				args := tokens[1:]
+				if redirectIdx != -1 {
+					args = tokens[1:redirectIdx]
+				}
+
 				fmt.Fprintln(out, strings.Join(args, " "))
 				continue
 			}
 
-			// External command with output redirection
-			if redirectIdx != -1 && redirectIdx+1 < len(tokens) {
-				exe := findExecutable(tokens[0])
-				if exe != "" {
-					outFile, err := os.Create(tokens[redirectIdx+1])
-					if err != nil {
-						fmt.Fprintf(os.Stderr, "%s: %v\n", tokens[redirectIdx+1], err)
-						continue
-					}
-					err = runExternalCommand(exe, tokens[:redirectIdx], outFile)
-					outFile.Close()
-					continue
-				}
-			}
-
-			// External command (no redirection)
+			// Handle external commands with redirection
 			exe := findExecutable(tokens[0])
 			if exe != "" {
-				_ = runExternalCommand(exe, tokens, nil)
+				out, err := handleOutputRedirection(tokens, redirectIdx)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					continue
+				}
+				defer out.Close()
+
+				errOut, err := handleErrorRedirection(tokens, errorRedirectIdx)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					continue
+				}
+				defer errOut.Close()
+
+				cmd := exec.Command(exe, tokens[1:]...)
+				cmd.Stdout = out
+				cmd.Stderr = errOut
+				cmd.Stdin = os.Stdin
+
+				if err := cmd.Run(); err != nil {
+					fmt.Fprintf(os.Stderr, "%s: %v\n", tokens[0], err)
+				}
 				continue
 			}
-		}
 
-		fmt.Println(command + ": command not found")
+			fmt.Println(command + ": command not found")
+		}
 	}
 }
