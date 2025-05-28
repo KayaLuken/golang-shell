@@ -84,61 +84,61 @@ func parseQuotes(input string) []string {
 }
 
 func main() {
-	builtins := map[string]func([]string) error{
-		"exit": func(args []string) error {
-			os.Exit(0)
-			return nil
-		},
-		"pwd": func(args []string) error {
-			cwd, err := os.Getwd()
+	builtins := make(map[string]func([]string) error)
+
+	builtins["exit"] = func(args []string) error {
+		os.Exit(0)
+		return nil
+	}
+	builtins["pwd"] = func(args []string) error {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("pwd: %v", err)
+		}
+		fmt.Println(cwd)
+		return nil
+	}
+	builtins["cd"] = func(args []string) error {
+		if len(args) != 2 {
+			return fmt.Errorf("cd: too many arguments")
+		}
+		arg := args[1]
+		if arg == "~" {
+			home, err := os.UserHomeDir()
 			if err != nil {
-				return fmt.Errorf("pwd: %v", err)
+				return fmt.Errorf("cd: cannot determine home directory")
 			}
-			fmt.Println(cwd)
-			return nil
-		},
-		"cd": func(args []string) error {
-			if len(args) != 2 {
-				return fmt.Errorf("cd: too many arguments")
-			}
-			arg := args[1]
-			if arg == "~" {
-				home, err := os.UserHomeDir()
-				if err != nil {
-					return fmt.Errorf("cd: cannot determine home directory")
-				}
-				arg = home
-			}
-			absPath, err := os.Stat(arg)
-			if err != nil || !absPath.IsDir() {
-				return fmt.Errorf("cd: %s: No such file or directory", arg)
-			}
-			if err := os.Chdir(arg); err != nil {
-				return fmt.Errorf("cd: %s: No such file or directory", arg)
-			}
-			return nil
-		},
-		"echo": func(args []string) error {
-			fmt.Println(strings.Join(args[1:], " "))
-			return nil
-		},
-		"type": func(args []string) error {
-			if len(args) != 2 {
-				return fmt.Errorf("type: too many arguments")
-			}
-			arg := args[1]
-			if _, ok := builtins[arg]; ok {
-				fmt.Printf("%s is a shell builtin\n", arg)
+			arg = home
+		}
+		absPath, err := os.Stat(arg)
+		if err != nil || !absPath.IsDir() {
+			return fmt.Errorf("cd: %s: No such file or directory", arg)
+		}
+		if err := os.Chdir(arg); err != nil {
+			return fmt.Errorf("cd: %s: No such file or directory", arg)
+		}
+		return nil
+	}
+	builtins["echo"] = func(args []string) error {
+		fmt.Println(strings.Join(args[1:], " "))
+		return nil
+	}
+	builtins["type"] = func(args []string) error {
+		if len(args) != 2 {
+			return fmt.Errorf("type: too many arguments")
+		}
+		arg := args[1]
+		if _, ok := builtins[arg]; ok {
+			fmt.Printf("%s is a shell builtin\n", arg)
+		} else {
+			fullPath := findExecutable(arg)
+			if fullPath != "" {
+				fmt.Printf("%s is %s\n", arg, fullPath)
 			} else {
-				fullPath := findExecutable(arg)
-				if fullPath != "" {
-					fmt.Printf("%s is %s\n", arg, fullPath)
-				} else {
-					fmt.Printf("%s: not found\n", arg)
-				}
+				fmt.Printf("%s: not found\n", arg)
 			}
-			return nil
-		},
+		}
+		return nil
 	}
 
 	for {
@@ -172,14 +172,35 @@ func main() {
 			if redirectIdx != -1 {
 				args = tokens[:redirectIdx]
 			}
-			// Capture output
-			stdout := os.Stdout
-			stderr := os.Stderr
-			os.Stdout = &outBuf
-			os.Stderr = &errBuf
-			handlerErr = handler(args)
-			os.Stdout = stdout
-			os.Stderr = stderr
+			// Use Fprint to buffer instead of assigning os.Stdout/os.Stderr
+			handlerErr = func() error {
+				origStdout := os.Stdout
+				origStderr := os.Stderr
+				rStdout, wStdout, _ := os.Pipe()
+				rStderr, wStderr, _ := os.Pipe()
+				os.Stdout = wStdout
+				os.Stderr = wStderr
+
+				doneOut := make(chan struct{})
+				doneErr := make(chan struct{})
+				go func() {
+					outBuf.ReadFrom(rStdout)
+					close(doneOut)
+				}()
+				go func() {
+					errBuf.ReadFrom(rStderr)
+					close(doneErr)
+				}()
+
+				err := handler(args)
+				wStdout.Close()
+				wStderr.Close()
+				<-doneOut
+				<-doneErr
+				os.Stdout = origStdout
+				os.Stderr = origStderr
+				return err
+			}()
 		} else {
 			exe := findExecutable(tokens[0])
 			if exe == "" {
