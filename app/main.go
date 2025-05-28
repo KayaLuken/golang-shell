@@ -160,9 +160,11 @@ func main() {
 		}
 
 		redirectIdx, errorRedirectIdx := -1, -1
+		redirectOp := ""
 		for i, t := range tokens {
-			if t == ">" || t == "1>" {
+			if t == ">" || t == "1>" || t == ">>" || t == "1>>" {
 				redirectIdx = i
+				redirectOp = t
 				break
 			} else if t == "2>" {
 				errorRedirectIdx = i
@@ -232,7 +234,13 @@ func main() {
 
 		// Handle redirection (only the first redirect operator found)
 		if redirectIdx != -1 && redirectIdx+1 < len(tokens) {
-			f, err := os.Create(tokens[redirectIdx+1])
+			var f *os.File
+			var err error
+			if redirectOp == ">>" || redirectOp == "1>>" {
+				f, err = os.OpenFile(tokens[redirectIdx+1], os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			} else {
+				f, err = os.Create(tokens[redirectIdx+1])
+			}
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%s: %v\n", tokens[redirectIdx+1], err)
 			} else {
