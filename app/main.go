@@ -1,12 +1,13 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/chzyer/readline"
 )
 
 // Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
@@ -144,15 +145,37 @@ func init() {
 }
 
 func main() {
+	// Prepare a list of builtin names for completion
+	builtinNames := []string{}
+	for name := range builtins {
+		builtinNames = append(builtinNames, name)
+	}
+
+	rl, err := readline.NewEx(&readline.Config{
+		Prompt: "$ ",
+		AutoComplete: readline.NewPrefixCompleter(
+			// Dynamically add builtins as completions
+			func() []readline.PrefixCompleterInterface {
+				var pcs []readline.PrefixCompleterInterface
+				for _, name := range builtinNames {
+					pcs = append(pcs, readline.PcItem(name))
+				}
+				return pcs
+			}()...,
+		),
+	})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Failed to initialize readline:", err)
+		os.Exit(1)
+	}
+	defer rl.Close()
 
 	for {
-		fmt.Fprint(os.Stdout, "$ ")
-		command, err := bufio.NewReader(os.Stdin).ReadString('\n')
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error reading input:", err)
-			os.Exit(1)
+		line, err := rl.Readline()
+		if err != nil { // io.EOF, readline.ErrInterrupt
+			break
 		}
-		command = strings.TrimRight(command, "\r\n")
+		command := strings.TrimRight(line, "\r\n")
 
 		tokens := parseMetas(command)
 		if len(tokens) == 0 {
