@@ -195,7 +195,11 @@ func main() {
 					close(doneErr)
 				}()
 
-				_ = handler(args)
+				// FIX: Write handler error to redirected os.Stderr
+				if err := handler(args); err != nil {
+					fmt.Fprintln(os.Stderr, err)
+				}
+
 				wStdout.Close()
 				wStderr.Close()
 				<-doneOut
