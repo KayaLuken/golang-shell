@@ -84,9 +84,9 @@ func parseMetas(input string) []string {
 	return args
 }
 
-func main() {
-	builtins := make(map[string]func([]string) error)
+var builtins = make(map[string]func([]string) error)
 
+func init() {
 	builtins["exit"] = func(args []string) error {
 		os.Exit(0)
 		return nil
@@ -141,6 +141,9 @@ func main() {
 		}
 		return nil
 	}
+}
+
+func main() {
 
 	for {
 		fmt.Fprint(os.Stdout, "$ ")
@@ -220,6 +223,7 @@ func main() {
 				cmdArgs = tokens[1:errorRedirectIdx]
 			}
 			cmd := exec.Command(exe, cmdArgs...)
+			cmd.Args[0] = tokens[0] // Set argv[0] to the user-typed command
 			cmd.Stdout = &outBuf
 			cmd.Stderr = &errBuf
 			cmd.Stdin = os.Stdin
