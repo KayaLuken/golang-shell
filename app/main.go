@@ -244,7 +244,8 @@ func main() {
 			os.Stderr.Write(errBuf.Bytes())
 		}
 
-		if handlerErr != nil {
+		// Only print handlerErr for builtins, not for external commands
+		if handlerErr != nil && builtins[tokens[0]] != nil {
 			fmt.Fprintf(os.Stderr, "%v\n", handlerErr)
 		}
 	}
