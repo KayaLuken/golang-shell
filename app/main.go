@@ -26,7 +26,8 @@ func findExecutable(cmd string) string {
 }
 
 // Helper to split command line with single quote support (concatenates adjacent quoted args)
-func parseQuotes(input string) []string {
+func parseMetas(input string) []string {
+
 	var args []string
 	var buf strings.Builder
 	inSingleQuotes, inDoubleQuotes := false, false
@@ -150,7 +151,7 @@ func main() {
 		}
 		command = strings.TrimRight(command, "\r\n")
 
-		tokens := parseQuotes(command)
+		tokens := parseMetas(command)
 		if len(tokens) == 0 {
 			continue
 		}
@@ -159,21 +160,23 @@ func main() {
 		for i, t := range tokens {
 			if t == ">" || t == "1>" {
 				redirectIdx = i
+				break
 			} else if t == "2>" {
 				errorRedirectIdx = i
+				break
 			}
 		}
 
 		var outBuf, errBuf bytes.Buffer
-		var handlerErr error
 
 		if handler, ok := builtins[tokens[0]]; ok {
 			args := tokens
 			if redirectIdx != -1 {
 				args = tokens[:redirectIdx]
+			} else if errorRedirectIdx != -1 {
+				args = tokens[:errorRedirectIdx]
 			}
-			// Use Fprint to buffer instead of assigning os.Stdout/os.Stderr
-			handlerErr = func() error {
+			func() {
 				origStdout := os.Stdout
 				origStderr := os.Stderr
 				rStdout, wStdout, _ := os.Pipe()
@@ -192,14 +195,13 @@ func main() {
 					close(doneErr)
 				}()
 
-				err := handler(args)
+				_ = handler(args)
 				wStdout.Close()
 				wStderr.Close()
 				<-doneOut
 				<-doneErr
 				os.Stdout = origStdout
 				os.Stderr = origStderr
-				return err
 			}()
 		} else {
 			exe := findExecutable(tokens[0])
@@ -210,15 +212,17 @@ func main() {
 			cmdArgs := tokens[1:]
 			if redirectIdx != -1 {
 				cmdArgs = tokens[1:redirectIdx]
+			} else if errorRedirectIdx != -1 {
+				cmdArgs = tokens[1:errorRedirectIdx]
 			}
 			cmd := exec.Command(exe, cmdArgs...)
 			cmd.Stdout = &outBuf
 			cmd.Stderr = &errBuf
 			cmd.Stdin = os.Stdin
-			handlerErr = cmd.Run()
+			cmd.Run()
 		}
 
-		// Handle stdout redirection
+		// Handle redirection (only the first redirect operator found)
 		if redirectIdx != -1 && redirectIdx+1 < len(tokens) {
 			f, err := os.Create(tokens[redirectIdx+1])
 			if err != nil {
@@ -227,12 +231,8 @@ func main() {
 				f.Write(outBuf.Bytes())
 				f.Close()
 			}
-		} else {
-			os.Stdout.Write(outBuf.Bytes())
-		}
-
-		// Handle stderr redirection
-		if errorRedirectIdx != -1 && errorRedirectIdx+1 < len(tokens) {
+			os.Stderr.Write(errBuf.Bytes())
+		} else if errorRedirectIdx != -1 && errorRedirectIdx+1 < len(tokens) {
 			f, err := os.Create(tokens[errorRedirectIdx+1])
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%s: %v\n", tokens[errorRedirectIdx+1], err)
@@ -240,13 +240,10 @@ func main() {
 				f.Write(errBuf.Bytes())
 				f.Close()
 			}
+			os.Stdout.Write(outBuf.Bytes())
 		} else {
+			os.Stdout.Write(outBuf.Bytes())
 			os.Stderr.Write(errBuf.Bytes())
-		}
-
-		// Only print handlerErr for builtins, not for external commands
-		if handlerErr != nil && builtins[tokens[0]] != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", handlerErr)
 		}
 	}
 }
