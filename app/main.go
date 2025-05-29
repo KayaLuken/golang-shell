@@ -144,6 +144,20 @@ func init() {
 	}
 }
 
+type bellCompleter struct {
+	readline.PrefixCompleterInterface
+}
+
+func (b *bellCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) {
+	// Use the default completer
+	suggestions, length := b.PrefixCompleterInterface.Do(line, pos)
+	if len(suggestions) == 0 {
+		// Print system bell (ASCII BEL)
+		fmt.Print("\a")
+	}
+	return suggestions, length
+}
+
 func main() {
 	// Prepare a list of builtin names for completion
 	builtinNames := []string{}
@@ -151,18 +165,20 @@ func main() {
 		builtinNames = append(builtinNames, name)
 	}
 
+	// Build the prefix completer
+	prefixCompleter := readline.NewPrefixCompleter(
+		func() []readline.PrefixCompleterInterface {
+			var pcs []readline.PrefixCompleterInterface
+			for _, name := range builtinNames {
+				pcs = append(pcs, readline.PcItem(name))
+			}
+			return pcs
+		}()...,
+	)
+
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt: "$ ",
-		AutoComplete: readline.NewPrefixCompleter(
-			// Dynamically add builtins as completions
-			func() []readline.PrefixCompleterInterface {
-				var pcs []readline.PrefixCompleterInterface
-				for _, name := range builtinNames {
-					pcs = append(pcs, readline.PcItem(name))
-				}
-				return pcs
-			}()...,
-		),
+		AutoComplete: &bellCompleter{prefixCompleter},
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Failed to initialize readline:", err)
