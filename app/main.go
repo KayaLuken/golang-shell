@@ -158,6 +158,36 @@ func (b *bellCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) 
 	return suggestions, length
 }
 
+// Helper to get all executable names in $PATH
+func getExternalCommands() []string {
+	cmds := make(map[string]struct{})
+	pathEnv := os.Getenv("PATH")
+	paths := strings.Split(pathEnv, string(os.PathListSeparator))
+	for _, dir := range paths {
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, file := range files {
+			if file.IsDir() {
+				continue
+			}
+			name := file.Name()
+			fullPath := dir + string(os.PathSeparator) + name
+			info, err := os.Stat(fullPath)
+			if err == nil && info.Mode().IsRegular() && (info.Mode().Perm()&0111 != 0) {
+				cmds[name] = struct{}{}
+			}
+		}
+	}
+	// Convert map to slice
+	var result []string
+	for name := range cmds {
+		result = append(result, name)
+	}
+	return result
+}
+
 func main() {
 	// Prepare a list of builtin names for completion
 	builtinNames := []string{}
@@ -165,11 +195,27 @@ func main() {
 		builtinNames = append(builtinNames, name)
 	}
 
-	// Build the prefix completer
+	// Gather external commands
+	externalCmds := getExternalCommands()
+
+	// Combine builtins and external commands, removing duplicates
+	cmdSet := make(map[string]struct{})
+	for _, name := range builtinNames {
+		cmdSet[name] = struct{}{}
+	}
+	for _, name := range externalCmds {
+		cmdSet[name] = struct{}{}
+	}
+	var allCommands []string
+	for name := range cmdSet {
+		allCommands = append(allCommands, name)
+	}
+
+	// Build the prefix completer with all commands
 	prefixCompleter := readline.NewPrefixCompleter(
 		func() []readline.PrefixCompleterInterface {
 			var pcs []readline.PrefixCompleterInterface
-			for _, name := range builtinNames {
+			for _, name := range allCommands {
 				pcs = append(pcs, readline.PcItem(name))
 			}
 			return pcs
