@@ -433,17 +433,23 @@ func main() {
 				continue
 			}
 
-			// Close writer when left finishes to signal EOF to right
+			// 🧠 Kill left (tail -f) as soon as right (head -n) finishes
+			done := make(chan struct{})
+			go func() {
+				rightCmd.Wait()
+				pr.Close()
+				close(done)
+			}()
+
 			go func() {
 				leftCmd.Wait()
 				pw.Close()
 			}()
 
-			err := rightCmd.Wait()
-			pr.Close()
+			<-done // wait until head is done
 
-			// 🚨 Ensure leftCmd is killed after rightCmd exits (for tail -f | head -n 5)
-			if err == nil && leftCmd.Process != nil {
+			// Kill tail -f after head finishes (to avoid it hanging)
+			if leftCmd.Process != nil {
 				_ = leftCmd.Process.Kill()
 			}
 			continue
