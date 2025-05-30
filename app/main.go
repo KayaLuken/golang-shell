@@ -302,6 +302,14 @@ func main() {
 		if len(tokens) == 0 {
 			continue
 		}
+		// Detect pipeline
+		pipeIdx := -1
+		for i, t := range tokens {
+			if t == "|" {
+				pipeIdx = i
+				break
+			}
+		}
 
 		redirectIdx, errorRedirectIdx := -1, -1
 		redirectOp, errorRedirectOp := "", ""
@@ -375,6 +383,24 @@ func main() {
 			cmd.Stderr = &errBuf
 			cmd.Stdin = os.Stdin
 			cmd.Run()
+		}
+		if pipeIdx != -1 && pipeIdx+1 < len(tokens) {
+			// Prepare right side of the pipeline
+			rightTokens := tokens[pipeIdx+1:]
+			rightExe := findExecutable(rightTokens[0])
+			if rightExe == "" {
+				fmt.Fprintf(os.Stderr, "%s: command not found\n", rightTokens[0])
+				return
+			}
+			rightCmd := exec.Command(rightExe, rightTokens[1:]...)
+			rightCmd.Args[0] = rightTokens[0]
+			rightCmd.Stderr = os.Stderr
+			rightCmd.Stdout = os.Stdout
+
+			// Feed outBuf as stdin to the right command
+			rightCmd.Stdin = bytes.NewReader(outBuf.Bytes())
+			rightCmd.Run()
+			continue
 		}
 
 		// Handle redirection (only the first redirect operator found)
