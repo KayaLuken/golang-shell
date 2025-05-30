@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"sort"
@@ -385,21 +386,60 @@ func main() {
 			cmd.Run()
 		}
 		if pipeIdx != -1 && pipeIdx+1 < len(tokens) {
-			// Prepare right side of the pipeline
 			rightTokens := tokens[pipeIdx+1:]
 			rightExe := findExecutable(rightTokens[0])
 			if rightExe == "" {
 				fmt.Fprintf(os.Stderr, "%s: command not found\n", rightTokens[0])
-				return
+				continue
 			}
 			rightCmd := exec.Command(rightExe, rightTokens[1:]...)
 			rightCmd.Args[0] = rightTokens[0]
 			rightCmd.Stderr = os.Stderr
 			rightCmd.Stdout = os.Stdout
 
-			// Feed outBuf as stdin to the right command
-			rightCmd.Stdin = bytes.NewReader(outBuf.Bytes())
-			rightCmd.Run()
+			// If the first command was a builtin, use outBuf
+			if _, ok := builtins[tokens[0]]; ok {
+				rightCmd.Stdin = bytes.NewReader(outBuf.Bytes())
+				rightCmd.Run()
+				continue
+			}
+
+			// If the first command was external, stream output using a pipe
+			leftExe := findExecutable(tokens[0])
+			if leftExe == "" {
+				fmt.Fprintf(os.Stderr, "%s: command not found\n", tokens[0])
+				continue
+			}
+			leftCmd := exec.Command(leftExe, tokens[1:pipeIdx]...)
+			leftCmd.Args[0] = tokens[0]
+			leftCmd.Stderr = os.Stderr
+
+			pr, pw := io.Pipe()
+			leftCmd.Stdout = pw
+			rightCmd.Stdin = pr
+
+			// Start both commands
+			if err := leftCmd.Start(); err != nil {
+				fmt.Fprintf(os.Stderr, "Left command error: %v\n", err)
+				pw.Close()
+				pr.Close()
+				continue
+			}
+			if err := rightCmd.Start(); err != nil {
+				fmt.Fprintf(os.Stderr, "Right command error: %v\n", err)
+				pw.Close()
+				pr.Close()
+				leftCmd.Wait()
+				continue
+			}
+
+			// Close writer when left finishes to signal EOF to right
+			go func() {
+				leftCmd.Wait()
+				pw.Close()
+			}()
+			rightCmd.Wait()
+			pr.Close()
 			continue
 		}
 
