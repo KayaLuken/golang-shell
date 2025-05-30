@@ -188,7 +188,7 @@ func (b *bellCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) 
 			sort.Strings(names)
 			for i, name := range names {
 				if i > 0 {
-					fmt.Print("  ") // exactly two spaces
+					fmt.Print(" ")
 				}
 				fmt.Print(name)
 			}
