@@ -87,59 +87,65 @@ func parseMetas(input string) []string {
 	return args
 }
 
-var builtins = make(map[string]func([]string) error)
+var builtins = make(map[string]func([]string, io.Writer, io.Writer) error)
 
 func init() {
-	builtins["exit"] = func(args []string) error {
+	builtins["exit"] = func(args []string, stdout, stderr io.Writer) error {
 		os.Exit(0)
 		return nil
 	}
-	builtins["pwd"] = func(args []string) error {
+	builtins["pwd"] = func(args []string, stdout, stderr io.Writer) error {
 		cwd, err := os.Getwd()
 		if err != nil {
-			return fmt.Errorf("pwd: %v", err)
+			fmt.Fprintf(stderr, "pwd: %v\n", err)
+			return err
 		}
-		fmt.Println(cwd)
+		fmt.Fprintln(stdout, cwd)
 		return nil
 	}
-	builtins["cd"] = func(args []string) error {
+	builtins["cd"] = func(args []string, stdout, stderr io.Writer) error {
 		if len(args) != 2 {
+			fmt.Fprintln(stderr, "cd: too many arguments")
 			return fmt.Errorf("cd: too many arguments")
 		}
 		arg := args[1]
 		if arg == "~" {
 			home, err := os.UserHomeDir()
 			if err != nil {
-				return fmt.Errorf("cd: cannot determine home directory")
+				fmt.Fprintln(stderr, "cd: cannot determine home directory")
+				return err
 			}
 			arg = home
 		}
 		absPath, err := os.Stat(arg)
 		if err != nil || !absPath.IsDir() {
+			fmt.Fprintf(stderr, "cd: %s: No such file or directory\n", arg)
 			return fmt.Errorf("cd: %s: No such file or directory", arg)
 		}
 		if err := os.Chdir(arg); err != nil {
-			return fmt.Errorf("cd: %s: No such file or directory", arg)
+			fmt.Fprintf(stderr, "cd: %s: No such file or directory\n", arg)
+			return err
 		}
 		return nil
 	}
-	builtins["echo"] = func(args []string) error {
-		fmt.Println(strings.Join(args[1:], " "))
+	builtins["echo"] = func(args []string, stdout, stderr io.Writer) error {
+		fmt.Fprintln(stdout, strings.Join(args[1:], " "))
 		return nil
 	}
-	builtins["type"] = func(args []string) error {
+	builtins["type"] = func(args []string, stdout, stderr io.Writer) error {
 		if len(args) != 2 {
+			fmt.Fprintln(stderr, "type: too many arguments")
 			return fmt.Errorf("type: too many arguments")
 		}
 		arg := args[1]
 		if _, ok := builtins[arg]; ok {
-			fmt.Printf("%s is a shell builtin\n", arg)
+			fmt.Fprintf(stdout, "%s is a shell builtin\n", arg)
 		} else {
 			fullPath := findExecutable(arg)
 			if fullPath != "" {
-				fmt.Printf("%s is %s\n", arg, fullPath)
+				fmt.Fprintf(stdout, "%s is %s\n", arg, fullPath)
 			} else {
-				fmt.Printf("%s: not found\n", arg)
+				fmt.Fprintf(stdout, "%s: not found\n", arg)
 			}
 		}
 		return nil
@@ -244,6 +250,61 @@ func getExternalCommands() []string {
 	return result
 }
 
+type ShellCmd struct {
+	RunFunc func() error
+	Stdin   io.Reader
+	Stdout  io.Writer
+	Stderr  io.Writer
+}
+
+func (c *ShellCmd) Run() error {
+	origStdin, origStdout, origStderr := os.Stdin, os.Stdout, os.Stderr
+	if c.Stdin != nil {
+		if f, ok := c.Stdin.(*os.File); ok {
+			os.Stdin = f
+		}
+	}
+	if c.Stdout != nil {
+		if f, ok := c.Stdout.(*os.File); ok {
+			os.Stdout = f
+		}
+	}
+	if c.Stderr != nil {
+		if f, ok := c.Stderr.(*os.File); ok {
+			os.Stderr = f
+		}
+	}
+	err := c.RunFunc()
+	os.Stdin, os.Stdout, os.Stderr = origStdin, origStdout, origStderr
+	return err
+}
+
+func makeShellCmd(tokens []string) *ShellCmd {
+	if handler, ok := builtins[tokens[0]]; ok {
+		args := tokens
+		return &ShellCmd{
+			RunFunc: func() error { return handler(args, os.Stdout, os.Stderr) },
+			Stdin:   os.Stdin,
+			Stdout:  os.Stdout,
+			Stderr:  os.Stderr,
+		}
+	}
+	exe := findExecutable(tokens[0])
+	if exe == "" {
+		return nil
+	}
+	cmd := exec.Command(exe, tokens[1:]...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return &ShellCmd{
+		RunFunc: cmd.Run,
+		Stdin:   os.Stdin,
+		Stdout:  os.Stdout,
+		Stderr:  os.Stderr,
+	}
+}
+
 func main() {
 	// Prepare a list of builtin names for completion
 	builtinNames := []string{}
@@ -329,117 +390,42 @@ func main() {
 		var outBuf, errBuf bytes.Buffer
 
 		if pipeIdx != -1 && pipeIdx+1 < len(tokens) {
+			leftTokens := tokens[:pipeIdx]
 			rightTokens := tokens[pipeIdx+1:]
-			rightExe := findExecutable(rightTokens[0])
-			if rightExe == "" {
-				fmt.Fprintf(os.Stderr, "%s: command not found\n", rightTokens[0])
-				continue
-			}
-			rightCmd := exec.Command(rightExe, rightTokens[1:]...)
-			rightCmd.Args[0] = rightTokens[0]
-			rightCmd.Stderr = os.Stderr
-			rightCmd.Stdout = os.Stdout
-
-			// If the first command was a builtin, use outBuf
-			if _, ok := builtins[tokens[0]]; ok {
-				rightCmd.Stdin = bytes.NewReader(outBuf.Bytes())
-				rightCmd.Run()
-				continue
-			}
-
-			// If the first command was external, stream output using a pipe
-			leftExe := findExecutable(tokens[0])
-			if leftExe == "" {
-				fmt.Fprintf(os.Stderr, "%s: command not found\n", tokens[0])
-				continue
-			}
-			leftCmd := exec.Command(leftExe, tokens[1:pipeIdx]...)
-			leftCmd.Args[0] = tokens[0]
-			leftCmd.Stderr = os.Stderr
 
 			pr, pw := io.Pipe()
+			leftCmd := makeShellCmd(leftTokens)
+			rightCmd := makeShellCmd(rightTokens)
+			if leftCmd == nil || rightCmd == nil {
+				fmt.Fprintln(os.Stderr, "command not found")
+				continue
+			}
 			leftCmd.Stdout = pw
 			rightCmd.Stdin = pr
 
-			if err := leftCmd.Start(); err != nil {
-				fmt.Fprintf(os.Stderr, "Left command error: %v\n", err)
-				pw.Close()
-				pr.Close()
-				continue
-			}
-			if err := rightCmd.Start(); err != nil {
-				fmt.Fprintf(os.Stderr, "Right command error: %v\n", err)
-				pw.Close()
-				pr.Close()
-				leftCmd.Wait()
-				continue
-			}
-
+			done := make(chan struct{})
 			go func() {
-				leftCmd.Wait()
+				leftCmd.Run()
 				pw.Close()
+				close(done)
 			}()
-			rightCmd.Wait()
+			rightCmd.Run()
+			pr.Close()
+			<-done
 			continue
 		}
 
-		if handler, ok := builtins[tokens[0]]; ok {
-			args := tokens
-			if redirectIdx != -1 {
-				args = tokens[:redirectIdx]
-			} else if errorRedirectIdx != -1 {
-				args = tokens[:errorRedirectIdx]
-			}
-			func() {
-				origStdout := os.Stdout
-				origStderr := os.Stderr
-				rStdout, wStdout, _ := os.Pipe()
-				rStderr, wStderr, _ := os.Pipe()
-				os.Stdout = wStdout
-				os.Stderr = wStderr
-
-				doneOut := make(chan struct{})
-				doneErr := make(chan struct{})
-				go func() {
-					outBuf.ReadFrom(rStdout)
-					close(doneOut)
-				}()
-				go func() {
-					errBuf.ReadFrom(rStderr)
-					close(doneErr)
-				}()
-
-				// FIX: Write handler error to redirected os.Stderr
-				if err := handler(args); err != nil {
-					fmt.Fprintln(os.Stderr, err)
-				}
-
-				wStdout.Close()
-				wStderr.Close()
-				<-doneOut
-				<-doneErr
-				os.Stdout = origStdout
-				os.Stderr = origStderr
-			}()
-		} else {
-			exe := findExecutable(tokens[0])
-			if exe == "" {
-				fmt.Fprintf(os.Stderr, "%s: command not found\n", tokens[0])
-				continue
-			}
-			cmdArgs := tokens[1:]
-			if redirectIdx != -1 {
-				cmdArgs = tokens[1:redirectIdx]
-			} else if errorRedirectIdx != -1 {
-				cmdArgs = tokens[1:errorRedirectIdx]
-			}
-			cmd := exec.Command(exe, cmdArgs...)
-			cmd.Args[0] = tokens[0] // Set argv[0] to the user-typed command
-			cmd.Stdout = &outBuf
-			cmd.Stderr = &errBuf
-			cmd.Stdin = os.Stdin
-			cmd.Run()
+		cmd := makeShellCmd(tokens)
+		if cmd == nil {
+			fmt.Fprintf(os.Stderr, "%s: command not found\n", tokens[0])
+			continue
 		}
+
+		// Set up output buffers for redirection
+		cmd.Stdout = &outBuf
+		cmd.Stderr = &errBuf
+		cmd.Stdin = os.Stdin
+		cmd.Run()
 
 		// Handle redirection (only the first redirect operator found)
 		if redirectIdx != -1 && redirectIdx+1 < len(tokens) {
