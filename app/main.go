@@ -282,12 +282,14 @@ func (c *ShellCmd) Run() error {
 func makeShellCmd(tokens []string) *ShellCmd {
 	if handler, ok := builtins[tokens[0]]; ok {
 		args := tokens
-		return &ShellCmd{
-			RunFunc: func() error { return handler(args, os.Stdout, os.Stderr) },
-			Stdin:   os.Stdin,
-			Stdout:  os.Stdout,
-			Stderr:  os.Stderr,
+		cmd := &ShellCmd{}
+		cmd.RunFunc = func() error {
+			return handler(args, cmd.Stdout, cmd.Stderr)
 		}
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd
 	}
 	exe := findExecutable(tokens[0])
 	if exe == "" {
