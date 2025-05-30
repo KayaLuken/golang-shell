@@ -380,7 +380,6 @@ func main() {
 				pw.Close()
 			}()
 			rightCmd.Wait()
-			pr.Close()
 			continue
 		}
 
@@ -473,9 +472,6 @@ func main() {
 				f.Close()
 			}
 			os.Stdout.Write(outBuf.Bytes())
-		} else {
-			os.Stdout.Write(outBuf.Bytes())
-			os.Stderr.Write(errBuf.Bytes())
 		}
 	}
 }
