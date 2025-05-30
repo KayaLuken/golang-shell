@@ -146,15 +146,51 @@ func init() {
 
 type bellCompleter struct {
 	readline.PrefixCompleterInterface
+	lastLine string
+	tabCount int
 }
 
 func (b *bellCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) {
 	// Use the default completer
 	suggestions, length := b.PrefixCompleterInterface.Do(line, pos)
+	input := string(line[:pos])
+
+	// No suggestions: ring bell as before
 	if len(suggestions) == 0 {
-		// Print system bell (ASCII BEL)
 		fmt.Print("\a")
+		b.tabCount = 0
+		b.lastLine = input
+		return suggestions, length
 	}
+
+	// Track repeated tab presses for the same input
+	if input == b.lastLine {
+		b.tabCount++
+	} else {
+		b.tabCount = 1
+		b.lastLine = input
+	}
+
+	// If multiple suggestions, handle double-tab logic
+	if len(suggestions) > 1 {
+		if b.tabCount == 1 {
+			fmt.Print("\a")
+			return nil, 0
+		} else if b.tabCount == 2 {
+			fmt.Println()
+			for i, s := range suggestions {
+				if i > 0 {
+					fmt.Print("  ")
+				}
+				fmt.Print(string(s))
+			}
+			fmt.Println()
+			fmt.Printf("$ %s", input)
+			return nil, 0
+		}
+	}
+
+	// Default: use prefix completer (for builtins, single match, etc)
 	return suggestions, length
 }
 
@@ -224,7 +260,11 @@ func main() {
 
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt: "$ ",
-		AutoComplete: &bellCompleter{prefixCompleter},
+		AutoComplete: &bellCompleter{
+			PrefixCompleterInterface: prefixCompleter,
+			lastLine:                 "",
+			tabCount:                 0,
+		},
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Failed to initialize readline:", err)
