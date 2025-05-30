@@ -182,7 +182,7 @@ func (b *bellCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) 
 				if i > 0 {
 					fmt.Print("  ")
 				}
-				fmt.Print(string(s))
+				fmt.Print(input + string(s))
 			}
 			fmt.Println()
 			fmt.Printf("$ %s", input)
