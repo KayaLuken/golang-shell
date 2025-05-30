@@ -172,8 +172,19 @@ func (b *bellCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) 
 		b.lastLine = input
 	}
 
-	// If multiple suggestions, handle double-tab logic
+	// If multiple suggestions, handle completion to longest common prefix
 	if len(suggestions) > 1 {
+		// Find the longest common prefix among all suggestions
+		lcp := string(suggestions[0])
+		for _, s := range suggestions[1:] {
+			lcp = commonPrefix(lcp, string(s))
+		}
+		// If the longest common prefix is longer than the current input, complete to it
+		if lcp != "" && lcp != input {
+			// Complete to the longest common prefix
+			return [][]rune{[]rune(lcp)}, len(input)
+		}
+		// Otherwise, handle double-tab as before
 		if b.tabCount == 1 {
 			fmt.Print("\a")
 			return nil, 0
@@ -402,4 +413,17 @@ func main() {
 			os.Stderr.Write(errBuf.Bytes())
 		}
 	}
+}
+
+func commonPrefix(s1, s2 string) string {
+	minLen := len(s1)
+	if len(s2) < minLen {
+		minLen = len(s2)
+	}
+	for i := 0; i < minLen; i++ {
+		if s1[i] != s2[i] {
+			return s1[:i]
+		}
+	}
+	return s1[:minLen]
 }
