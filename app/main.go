@@ -386,11 +386,8 @@ func main() {
 			cmd.Run()
 		}
 		if pipeIdx != -1 && pipeIdx+1 < len(tokens) {
-			fmt.Fprintf(os.Stderr, "[DEBUG] Pipeline detected: left=%v | right=%v\n", tokens[:pipeIdx], tokens[pipeIdx+1:])
-
 			rightTokens := tokens[pipeIdx+1:]
 			rightExe := findExecutable(rightTokens[0])
-			fmt.Fprintf(os.Stderr, "[DEBUG] rightExe=%v\n", rightExe)
 			if rightExe == "" {
 				fmt.Fprintf(os.Stderr, "%s: command not found\n", rightTokens[0])
 				continue
@@ -402,7 +399,6 @@ func main() {
 
 			// If the first command was a builtin, use outBuf
 			if _, ok := builtins[tokens[0]]; ok {
-				fmt.Fprintf(os.Stderr, "[DEBUG] Left is builtin: %v\n", tokens[0])
 				rightCmd.Stdin = bytes.NewReader(outBuf.Bytes())
 				rightCmd.Run()
 				continue
@@ -410,7 +406,6 @@ func main() {
 
 			// If the first command was external, stream output using a pipe
 			leftExe := findExecutable(tokens[0])
-			fmt.Fprintf(os.Stderr, "[DEBUG] leftExe=%v\n", leftExe)
 			if leftExe == "" {
 				fmt.Fprintf(os.Stderr, "%s: command not found\n", tokens[0])
 				continue
@@ -423,14 +418,12 @@ func main() {
 			leftCmd.Stdout = pw
 			rightCmd.Stdin = pr
 
-			fmt.Fprintf(os.Stderr, "[DEBUG] Starting leftCmd: %v\n", leftCmd.Args)
 			if err := leftCmd.Start(); err != nil {
 				fmt.Fprintf(os.Stderr, "Left command error: %v\n", err)
 				pw.Close()
 				pr.Close()
 				continue
 			}
-			fmt.Fprintf(os.Stderr, "[DEBUG] Starting rightCmd: %v\n", rightCmd.Args)
 			if err := rightCmd.Start(); err != nil {
 				fmt.Fprintf(os.Stderr, "Right command error: %v\n", err)
 				pw.Close()
@@ -444,7 +437,7 @@ func main() {
 				pw.Close()
 			}()
 			rightCmd.Wait()
-			// pr.Close() // (as discussed, don't close here)
+			pr.Close()
 			continue
 		}
 
