@@ -472,6 +472,9 @@ func main() {
 				f.Close()
 			}
 			os.Stdout.Write(outBuf.Bytes())
+		} else {
+			os.Stdout.Write(outBuf.Bytes())
+			os.Stderr.Write(errBuf.Bytes())
 		}
 	}
 }
