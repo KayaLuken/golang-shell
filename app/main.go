@@ -328,6 +328,62 @@ func main() {
 
 		var outBuf, errBuf bytes.Buffer
 
+		if pipeIdx != -1 && pipeIdx+1 < len(tokens) {
+			rightTokens := tokens[pipeIdx+1:]
+			rightExe := findExecutable(rightTokens[0])
+			if rightExe == "" {
+				fmt.Fprintf(os.Stderr, "%s: command not found\n", rightTokens[0])
+				continue
+			}
+			rightCmd := exec.Command(rightExe, rightTokens[1:]...)
+			rightCmd.Args[0] = rightTokens[0]
+			rightCmd.Stderr = os.Stderr
+			rightCmd.Stdout = os.Stdout
+
+			// If the first command was a builtin, use outBuf
+			if _, ok := builtins[tokens[0]]; ok {
+				rightCmd.Stdin = bytes.NewReader(outBuf.Bytes())
+				rightCmd.Run()
+				continue
+			}
+
+			// If the first command was external, stream output using a pipe
+			leftExe := findExecutable(tokens[0])
+			if leftExe == "" {
+				fmt.Fprintf(os.Stderr, "%s: command not found\n", tokens[0])
+				continue
+			}
+			leftCmd := exec.Command(leftExe, tokens[1:pipeIdx]...)
+			leftCmd.Args[0] = tokens[0]
+			leftCmd.Stderr = os.Stderr
+
+			pr, pw := io.Pipe()
+			leftCmd.Stdout = pw
+			rightCmd.Stdin = pr
+
+			if err := leftCmd.Start(); err != nil {
+				fmt.Fprintf(os.Stderr, "Left command error: %v\n", err)
+				pw.Close()
+				pr.Close()
+				continue
+			}
+			if err := rightCmd.Start(); err != nil {
+				fmt.Fprintf(os.Stderr, "Right command error: %v\n", err)
+				pw.Close()
+				pr.Close()
+				leftCmd.Wait()
+				continue
+			}
+
+			go func() {
+				leftCmd.Wait()
+				pw.Close()
+			}()
+			rightCmd.Wait()
+			//pr.Close()
+			continue
+		}
+
 		if handler, ok := builtins[tokens[0]]; ok {
 			args := tokens
 			if redirectIdx != -1 {
@@ -385,61 +441,6 @@ func main() {
 			cmd.Stdin = os.Stdin
 			cmd.Run()
 		}
-		if pipeIdx != -1 && pipeIdx+1 < len(tokens) {
-			rightTokens := tokens[pipeIdx+1:]
-			rightExe := findExecutable(rightTokens[0])
-			if rightExe == "" {
-				fmt.Fprintf(os.Stderr, "%s: command not found\n", rightTokens[0])
-				continue
-			}
-			rightCmd := exec.Command(rightExe, rightTokens[1:]...)
-			rightCmd.Args[0] = rightTokens[0]
-			rightCmd.Stderr = os.Stderr
-			rightCmd.Stdout = os.Stdout
-
-			// If the first command was a builtin, use outBuf
-			if _, ok := builtins[tokens[0]]; ok {
-				rightCmd.Stdin = bytes.NewReader(outBuf.Bytes())
-				rightCmd.Run()
-				continue
-			}
-
-			// If the first command was external, stream output using a pipe
-			leftExe := findExecutable(tokens[0])
-			if leftExe == "" {
-				fmt.Fprintf(os.Stderr, "%s: command not found\n", tokens[0])
-				continue
-			}
-			leftCmd := exec.Command(leftExe, tokens[1:pipeIdx]...)
-			leftCmd.Args[0] = tokens[0]
-			leftCmd.Stderr = os.Stderr
-
-			pr, pw := io.Pipe()
-			leftCmd.Stdout = pw
-			rightCmd.Stdin = pr
-
-			if err := leftCmd.Start(); err != nil {
-				fmt.Fprintf(os.Stderr, "Left command error: %v\n", err)
-				pw.Close()
-				pr.Close()
-				continue
-			}
-			if err := rightCmd.Start(); err != nil {
-				fmt.Fprintf(os.Stderr, "Right command error: %v\n", err)
-				pw.Close()
-				pr.Close()
-				leftCmd.Wait()
-				continue
-			}
-
-			go func() {
-				leftCmd.Wait()
-				pw.Close()
-			}()
-			rightCmd.Wait()
-			//pr.Close()
-			continue
-		}
 
 		// Handle redirection (only the first redirect operator found)
 		if redirectIdx != -1 && redirectIdx+1 < len(tokens) {
@@ -473,8 +474,8 @@ func main() {
 			}
 			os.Stdout.Write(outBuf.Bytes())
 		} else {
-			//os.Stdout.Write(outBuf.Bytes())
-			//os.Stderr.Write(errBuf.Bytes())
+			os.Stdout.Write(outBuf.Bytes())
+			os.Stderr.Write(errBuf.Bytes())
 		}
 	}
 }
