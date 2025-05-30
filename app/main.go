@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 
 	"github.com/chzyer/readline"
@@ -178,11 +179,18 @@ func (b *bellCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) 
 			return nil, 0
 		} else if b.tabCount == 2 {
 			fmt.Println()
-			for i, s := range suggestions {
+			// Collect all full suggestions
+			var names []string
+			for _, s := range suggestions {
+				names = append(names, input+string(s))
+			}
+			// Sort lexicographically
+			sort.Strings(names)
+			for i, name := range names {
 				if i > 0 {
-					fmt.Print("  ")
+					fmt.Print("  ") // exactly two spaces
 				}
-				fmt.Print(input + string(s))
+				fmt.Print(name)
 			}
 			fmt.Println()
 			fmt.Printf("$ %s", input)
