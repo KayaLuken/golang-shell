@@ -437,7 +437,7 @@ func main() {
 				pw.Close()
 			}()
 			rightCmd.Wait()
-			pr.Close()
+			//pr.Close()
 			continue
 		}
 
