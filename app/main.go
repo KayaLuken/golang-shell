@@ -438,8 +438,14 @@ func main() {
 				leftCmd.Wait()
 				pw.Close()
 			}()
-			rightCmd.Wait()
+
+			err := rightCmd.Wait()
 			pr.Close()
+
+			// 🚨 Ensure leftCmd is killed after rightCmd exits (for tail -f | head -n 5)
+			if err == nil && leftCmd.Process != nil {
+				_ = leftCmd.Process.Kill()
+			}
 			continue
 		}
 
