@@ -418,7 +418,6 @@ func main() {
 			leftCmd.Stdout = pw
 			rightCmd.Stdin = pr
 
-			// Start both commands
 			if err := leftCmd.Start(); err != nil {
 				fmt.Fprintf(os.Stderr, "Left command error: %v\n", err)
 				pw.Close()
@@ -433,26 +432,11 @@ func main() {
 				continue
 			}
 
-			// 🧠 Kill left (tail -f) as soon as right (head -n) finishes
-			done := make(chan struct{})
-			go func() {
-				rightCmd.Wait()
-				pr.Close()
-				close(done)
-			}()
-
 			go func() {
 				leftCmd.Wait()
 				pw.Close()
 			}()
-
-			<-done // wait until head is done
-
-			// Kill tail -f after head finishes (to avoid it hanging)
-			if leftCmd.Process != nil {
-				_ = leftCmd.Process.Kill()
-			}
-			continue
+			rightCmd.Wait()
 		}
 
 		// Handle redirection (only the first redirect operator found)
