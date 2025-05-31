@@ -129,9 +129,7 @@ func init() {
 		return nil
 	}
 	builtins["echo"] = func(args []string, stdout, stderr io.Writer, stdin io.Reader) error {
-		fmt.Fprintf(os.Stderr, "[DEBUG echo] args=%v stdout=%T\n", args, stdout)
 		n, err := fmt.Fprintln(stdout, strings.Join(args[1:], " "))
-		fmt.Fprintf(os.Stderr, "[DEBUG echo] wrote %d bytes, err=%v\n", n, err)
 		return err
 	}
 	builtins["type"] = func(args []string, stdout, stderr io.Writer, stdin io.Reader) error {
