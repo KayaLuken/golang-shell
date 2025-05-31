@@ -387,6 +387,8 @@ func main() {
 			}
 			leftCmd.Stdout = pw
 			rightCmd.Stdin = pr
+			rightCmd.Stdout = os.Stdout
+			rightCmd.Stderr = os.Stderr
 
 			done := make(chan struct{})
 			go func() {
