@@ -87,65 +87,65 @@ func parseMetas(input string) []string {
 	return args
 }
 
-var builtins = make(map[string]func([]string, io.Writer, io.Writer) error)
+var builtins = make(map[string]func([]string, *io.Writer, *io.Writer) error)
 
 func init() {
-	builtins["exit"] = func(args []string, stdout, stderr io.Writer) error {
+	builtins["exit"] = func(args []string, stdout, stderr *io.Writer) error {
 		os.Exit(0)
 		return nil
 	}
-	builtins["pwd"] = func(args []string, stdout, stderr io.Writer) error {
+	builtins["pwd"] = func(args []string, stdout, stderr *io.Writer) error {
 		cwd, err := os.Getwd()
 		if err != nil {
-			fmt.Fprintf(stderr, "pwd: %v\n", err)
+			fmt.Fprintf(*stderr, "pwd: %v\n", err)
 			return err
 		}
-		fmt.Fprintln(stdout, cwd)
+		fmt.Fprintln(*stdout, cwd)
 		return nil
 	}
-	builtins["cd"] = func(args []string, stdout, stderr io.Writer) error {
+	builtins["cd"] = func(args []string, stdout, stderr *io.Writer) error {
 		if len(args) != 2 {
-			fmt.Fprintln(stderr, "cd: too many arguments")
+			fmt.Fprintln(*stderr, "cd: too many arguments")
 			return fmt.Errorf("cd: too many arguments")
 		}
 		arg := args[1]
 		if arg == "~" {
 			home, err := os.UserHomeDir()
 			if err != nil {
-				fmt.Fprintln(stderr, "cd: cannot determine home directory")
+				fmt.Fprintln(*stderr, "cd: cannot determine home directory")
 				return err
 			}
 			arg = home
 		}
 		absPath, err := os.Stat(arg)
 		if err != nil || !absPath.IsDir() {
-			fmt.Fprintf(stderr, "cd: %s: No such file or directory\n", arg)
+			fmt.Fprintf(*stderr, "cd: %s: No such file or directory\n", arg)
 			return fmt.Errorf("cd: %s: No such file or directory", arg)
 		}
 		if err := os.Chdir(arg); err != nil {
-			fmt.Fprintf(stderr, "cd: %s: No such file or directory\n", arg)
+			fmt.Fprintf(*stderr, "cd: %s: No such file or directory\n", arg)
 			return err
 		}
 		return nil
 	}
-	builtins["echo"] = func(args []string, stdout, stderr io.Writer) error {
-		fmt.Fprintln(stdout, strings.Join(args[1:], " "))
+	builtins["echo"] = func(args []string, stdout, stderr *io.Writer) error {
+		fmt.Fprintln(*stdout, strings.Join(args[1:], " "))
 		return nil
 	}
-	builtins["type"] = func(args []string, stdout, stderr io.Writer) error {
+	builtins["type"] = func(args []string, stdout, stderr *io.Writer) error {
 		if len(args) != 2 {
-			fmt.Fprintln(stderr, "type: too many arguments")
+			fmt.Fprintln(*stderr, "type: too many arguments")
 			return fmt.Errorf("type: too many arguments")
 		}
 		arg := args[1]
 		if _, ok := builtins[arg]; ok {
-			fmt.Fprintf(stdout, "%s is a shell builtin\n", arg)
+			fmt.Fprintf(*stdout, "%s is a shell builtin\n", arg)
 		} else {
 			fullPath := findExecutable(arg)
 			if fullPath != "" {
-				fmt.Fprintf(stdout, "%s is %s\n", arg, fullPath)
+				fmt.Fprintf(*stdout, "%s is %s\n", arg, fullPath)
 			} else {
-				fmt.Fprintf(stdout, "%s: not found\n", arg)
+				fmt.Fprintf(*stdout, "%s: not found\n", arg)
 			}
 		}
 		return nil
@@ -267,7 +267,7 @@ func makeShellCmd(tokens []string) *ShellCmd {
 		args := tokens
 		cmd := &ShellCmd{}
 		cmd.RunFunc = func() error {
-			return handler(args, cmd.Stdout, cmd.Stderr)
+			return handler(args, &cmd.Stdout, &cmd.Stderr)
 		}
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
@@ -387,8 +387,6 @@ func main() {
 			}
 			leftCmd.Stdout = pw
 			rightCmd.Stdin = pr
-			rightCmd.Stdout = os.Stdout
-			rightCmd.Stderr = os.Stderr
 
 			done := make(chan struct{})
 			go func() {
