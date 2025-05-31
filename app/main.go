@@ -258,25 +258,8 @@ type ShellCmd struct {
 }
 
 func (c *ShellCmd) Run() error {
-	origStdin, origStdout, origStderr := os.Stdin, os.Stdout, os.Stderr
-	if c.Stdin != nil {
-		if f, ok := c.Stdin.(*os.File); ok {
-			os.Stdin = f
-		}
-	}
-	if c.Stdout != nil {
-		if f, ok := c.Stdout.(*os.File); ok {
-			os.Stdout = f
-		}
-	}
-	if c.Stderr != nil {
-		if f, ok := c.Stderr.(*os.File); ok {
-			os.Stderr = f
-		}
-	}
-	err := c.RunFunc()
-	os.Stdin, os.Stdout, os.Stderr = origStdin, origStdout, origStderr
-	return err
+	// Only redirect os.Stdout/os.Stderr for external commands (when needed)
+	return c.RunFunc()
 }
 
 func makeShellCmd(tokens []string) *ShellCmd {
