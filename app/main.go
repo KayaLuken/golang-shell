@@ -265,22 +265,17 @@ func (c *ShellCmd) Run() error {
 }
 
 func makeShellCmd(tokens []string) *ShellCmd {
-	fmt.Fprintf(os.Stderr, "[DEBUG makeShellCmd] tokens=%v\n", tokens)
 	if handler, ok := builtins[tokens[0]]; ok {
 		cmd := &ShellCmd{}
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		cmd.RunFunc = func() error {
-			fmt.Fprintf(os.Stderr, "[DEBUG makeShellCmd.RunFunc] builtin=%s Stdout=%T Stderr=%T\n", tokens[0], cmd.Stdout, cmd.Stderr)
-			// Pass cmd.Stdin, not os.Stdin!
 			return handler(tokens, cmd.Stdout, cmd.Stderr, cmd.Stdin)
 		}
-		fmt.Fprintf(os.Stderr, "[DEBUG makeShellCmd] returning builtin ShellCmd for %s\n", tokens[0])
 		return cmd
 	}
 	exe := findExecutable(tokens[0])
-	fmt.Fprintf(os.Stderr, "[DEBUG makeShellCmd] external exe=%s\n", exe)
 	if exe == "" {
 		return nil
 	}
@@ -288,7 +283,6 @@ func makeShellCmd(tokens []string) *ShellCmd {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	fmt.Fprintf(os.Stderr, "[DEBUG makeShellCmd] returning external ShellCmd for %s\n", tokens[0])
 	return &ShellCmd{
 		RunFunc: cmd.Run,
 		Stdin:   os.Stdin,
@@ -385,50 +379,31 @@ func main() {
 			leftTokens := tokens[:pipeIdx]
 			rightTokens := tokens[pipeIdx+1:]
 
-			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] leftTokens=%v rightTokens=%v\n", leftTokens, rightTokens)
-
 			pr, pw := io.Pipe()
 			leftCmd := makeShellCmd(leftTokens)
 			rightCmd := makeShellCmd(rightTokens)
-			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] leftCmd=%#v\n", leftCmd)
-			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] rightCmd=%#v\n", rightCmd)
 			if leftCmd == nil || rightCmd == nil {
-				fmt.Fprintln(os.Stderr, "[DEBUG pipeline] command not found")
 				continue
 			}
 			leftCmd.Stdout = pw
-			// Debug: wrap pr with a TeeReader to log all bytes read by wc
-			debugBuf := &bytes.Buffer{}
-			tee := io.TeeReader(pr, debugBuf)
-			rightCmd.Stdin = tee
+			rightCmd.Stdin = pr
 			rightCmd.Stdout = os.Stdout
 			rightCmd.Stderr = os.Stderr
-
-			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] leftCmd.Stdout type=%T\n", leftCmd.Stdout)
-			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] rightCmd.Stdin type=%T\n", rightCmd.Stdin)
-			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] rightCmd.Stdout type=%T\n", rightCmd.Stdout)
-			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] rightCmd input (to wc): %q\n", debugBuf.Bytes())
 
 			startLeft := make(chan struct{})
 			done := make(chan struct{})
 
 			go func() {
-				fmt.Fprintf(os.Stderr, "[DEBUG pipeline] Running leftCmd...\n")
 				close(startLeft) // Signal that leftCmd is about to run
 				leftCmd.Run()
 				defer pw.Close()
-				fmt.Fprintf(os.Stderr, "[DEBUG pipeline] leftCmd done\n")
 				close(done)
 			}()
 
 			<-startLeft // Wait for leftCmd goroutine to start
-			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] Running rightCmd...\n")
 			rightCmd.Run()
-			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] rightCmd done\n")
-			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] rightCmd input (to wc): %q\n", debugBuf.Bytes())
 			defer pr.Close()
 			<-done
-			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] Pipeline complete\n")
 			continue
 		}
 
