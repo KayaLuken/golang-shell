@@ -396,13 +396,17 @@ func main() {
 				continue
 			}
 			leftCmd.Stdout = pw
-			rightCmd.Stdin = pr
+			// Debug: wrap pr with a TeeReader to log all bytes read by wc
+			debugBuf := &bytes.Buffer{}
+			tee := io.TeeReader(pr, debugBuf)
+			rightCmd.Stdin = tee
 			rightCmd.Stdout = os.Stdout
 			rightCmd.Stderr = os.Stderr
 
 			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] leftCmd.Stdout type=%T\n", leftCmd.Stdout)
 			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] rightCmd.Stdin type=%T\n", rightCmd.Stdin)
 			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] rightCmd.Stdout type=%T\n", rightCmd.Stdout)
+			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] rightCmd input (to wc): %q\n", debugBuf.Bytes())
 
 			done := make(chan struct{})
 			go func() {
