@@ -87,14 +87,14 @@ func parseMetas(input string) []string {
 	return args
 }
 
-var builtins = make(map[string]func([]string, io.Writer, io.Writer) error)
+var builtins = make(map[string]func([]string, io.Writer, io.Writer, io.Reader) error)
 
 func init() {
-	builtins["exit"] = func(args []string, stdout, stderr io.Writer) error {
+	builtins["exit"] = func(args []string, stdout, stderr io.Writer, stdin io.Reader) error {
 		os.Exit(0)
 		return nil
 	}
-	builtins["pwd"] = func(args []string, stdout, stderr io.Writer) error {
+	builtins["pwd"] = func(args []string, stdout, stderr io.Writer, stdin io.Reader) error {
 		cwd, err := os.Getwd()
 		if err != nil {
 			fmt.Fprintf(stderr, "pwd: %v\n", err)
@@ -103,7 +103,7 @@ func init() {
 		fmt.Fprintln(stdout, cwd)
 		return nil
 	}
-	builtins["cd"] = func(args []string, stdout, stderr io.Writer) error {
+	builtins["cd"] = func(args []string, stdout, stderr io.Writer, stdin io.Reader) error {
 		if len(args) != 2 {
 			fmt.Fprintln(stderr, "cd: too many arguments")
 			return fmt.Errorf("cd: too many arguments")
@@ -128,13 +128,13 @@ func init() {
 		}
 		return nil
 	}
-	builtins["echo"] = func(args []string, stdout, stderr io.Writer) error {
+	builtins["echo"] = func(args []string, stdout, stderr io.Writer, stdin io.Reader) error {
 		fmt.Fprintf(os.Stderr, "[DEBUG echo] args=%v stdout=%T\n", args, stdout)
 		n, err := fmt.Fprintln(stdout, strings.Join(args[1:], " "))
 		fmt.Fprintf(os.Stderr, "[DEBUG echo] wrote %d bytes, err=%v\n", n, err)
 		return err
 	}
-	builtins["type"] = func(args []string, stdout, stderr io.Writer) error {
+	builtins["type"] = func(args []string, stdout, stderr io.Writer, stdin io.Reader) error {
 		if len(args) != 2 {
 			fmt.Fprintln(stderr, "type: too many arguments")
 			return fmt.Errorf("type: too many arguments")
