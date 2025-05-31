@@ -152,17 +152,6 @@ func init() {
 		}
 		return nil
 	}
-	builtins["wc"] = func(args []string, stdout, stderr io.Writer, stdin io.Reader) error {
-		fmt.Fprintf(stderr, "[DEBUG builtin wc] args=%v\n", args)
-		data, err := io.ReadAll(stdin)
-		if err != nil {
-			fmt.Fprintf(stderr, "[DEBUG builtin wc] error reading stdin: %v\n", err)
-			return err
-		}
-		fmt.Fprintf(stderr, "[DEBUG builtin wc] stdin: %q\n", data)
-		fmt.Fprintln(stdout, "[BUILTIN WC OUTPUT]")
-		return nil
-	}
 }
 
 type bellCompleter struct {
