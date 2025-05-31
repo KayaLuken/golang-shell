@@ -408,17 +408,23 @@ func main() {
 			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] rightCmd.Stdout type=%T\n", rightCmd.Stdout)
 			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] rightCmd input (to wc): %q\n", debugBuf.Bytes())
 
+			startLeft := make(chan struct{})
 			done := make(chan struct{})
+
 			go func() {
 				fmt.Fprintf(os.Stderr, "[DEBUG pipeline] Running leftCmd...\n")
+				close(startLeft) // Signal that leftCmd is about to run
 				leftCmd.Run()
 				pw.Close()
 				fmt.Fprintf(os.Stderr, "[DEBUG pipeline] leftCmd done\n")
 				close(done)
 			}()
+
+			<-startLeft // Wait for leftCmd goroutine to start
 			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] Running rightCmd...\n")
 			rightCmd.Run()
 			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] rightCmd done\n")
+			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] rightCmd input (to wc): %q\n", debugBuf.Bytes())
 			pr.Close()
 			<-done
 			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] Pipeline complete\n")
