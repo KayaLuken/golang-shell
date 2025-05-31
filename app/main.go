@@ -152,16 +152,14 @@ func init() {
 		}
 		return nil
 	}
-	builtins["wc"] = func(args []string, stdout, stderr io.Writer) error {
+	builtins["wc"] = func(args []string, stdout, stderr io.Writer, stdin io.Reader) error {
 		fmt.Fprintf(stderr, "[DEBUG builtin wc] args=%v\n", args)
-		// Read all input from stdin and print it as a quoted string for debugging
-		data, err := io.ReadAll(os.Stdin)
+		data, err := io.ReadAll(stdin)
 		if err != nil {
 			fmt.Fprintf(stderr, "[DEBUG builtin wc] error reading stdin: %v\n", err)
 			return err
 		}
 		fmt.Fprintf(stderr, "[DEBUG builtin wc] stdin: %q\n", data)
-		// Optionally, print something to stdout so you see output
 		fmt.Fprintln(stdout, "[BUILTIN WC OUTPUT]")
 		return nil
 	}
@@ -286,7 +284,8 @@ func makeShellCmd(tokens []string) *ShellCmd {
 		cmd.Stderr = os.Stderr
 		cmd.RunFunc = func() error {
 			fmt.Fprintf(os.Stderr, "[DEBUG makeShellCmd.RunFunc] builtin=%s Stdout=%T Stderr=%T\n", tokens[0], cmd.Stdout, cmd.Stderr)
-			return handler(tokens, cmd.Stdout, cmd.Stderr)
+			// Pass cmd.Stdin, not os.Stdin!
+			return handler(tokens, cmd.Stdout, cmd.Stderr, cmd.Stdin)
 		}
 		fmt.Fprintf(os.Stderr, "[DEBUG makeShellCmd] returning builtin ShellCmd for %s\n", tokens[0])
 		return cmd
