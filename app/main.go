@@ -152,6 +152,19 @@ func init() {
 		}
 		return nil
 	}
+	builtins["wc"] = func(args []string, stdout, stderr io.Writer) error {
+		fmt.Fprintf(stderr, "[DEBUG builtin wc] args=%v\n", args)
+		// Read all input from stdin and print it as a quoted string for debugging
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			fmt.Fprintf(stderr, "[DEBUG builtin wc] error reading stdin: %v\n", err)
+			return err
+		}
+		fmt.Fprintf(stderr, "[DEBUG builtin wc] stdin: %q\n", data)
+		// Optionally, print something to stdout so you see output
+		fmt.Fprintln(stdout, "[BUILTIN WC OUTPUT]")
+		return nil
+	}
 }
 
 type bellCompleter struct {
@@ -415,7 +428,7 @@ func main() {
 				fmt.Fprintf(os.Stderr, "[DEBUG pipeline] Running leftCmd...\n")
 				close(startLeft) // Signal that leftCmd is about to run
 				leftCmd.Run()
-				pw.Close()
+				defer pw.Close()
 				fmt.Fprintf(os.Stderr, "[DEBUG pipeline] leftCmd done\n")
 				close(done)
 			}()
@@ -425,7 +438,7 @@ func main() {
 			rightCmd.Run()
 			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] rightCmd done\n")
 			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] rightCmd input (to wc): %q\n", debugBuf.Bytes())
-			pr.Close()
+			defer pr.Close()
 			<-done
 			fmt.Fprintf(os.Stderr, "[DEBUG pipeline] Pipeline complete\n")
 			continue
