@@ -302,6 +302,7 @@ func makeShellCmd(tokens []string) *ShellCmd {
 		return nil
 	}
 	cmd := exec.Command(exe, tokens[1:]...)
+	cmd.Args[0] = tokens[0]
 	return &ShellCmd{
 		cmd:    cmd,
 		Stdin:  os.Stdin,
