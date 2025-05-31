@@ -251,15 +251,39 @@ func getExternalCommands() []string {
 }
 
 type ShellCmd struct {
-	RunFunc func() error
-	Stdin   io.Reader
-	Stdout  io.Writer
-	Stderr  io.Writer
+	fn     func() error // For builtins
+	cmd    *exec.Cmd    // For externals
+	done   chan error
+	Stdin  io.Reader
+	Stdout io.Writer
+	Stderr io.Writer
 }
 
-func (c *ShellCmd) Run() error {
-	// Only redirect os.Stdout/os.Stderr for external commands (when needed)
-	return c.RunFunc()
+func (c *ShellCmd) Start() error {
+	if c.fn != nil {
+		c.done = make(chan error, 1)
+		go func() {
+			c.done <- c.fn()
+		}()
+		return nil
+	}
+	if c.cmd != nil {
+		c.cmd.Stdin = c.Stdin
+		c.cmd.Stdout = c.Stdout
+		c.cmd.Stderr = c.Stderr
+		return c.cmd.Start()
+	}
+	return fmt.Errorf("no command to start")
+}
+
+func (c *ShellCmd) Wait() error {
+	if c.fn != nil {
+		return <-c.done
+	}
+	if c.cmd != nil {
+		return c.cmd.Wait()
+	}
+	return fmt.Errorf("no command to wait on")
 }
 
 func makeShellCmd(tokens []string) *ShellCmd {
@@ -268,7 +292,7 @@ func makeShellCmd(tokens []string) *ShellCmd {
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		cmd.RunFunc = func() error {
+		cmd.fn = func() error {
 			return handler(tokens, cmd.Stdout, cmd.Stderr, cmd.Stdin)
 		}
 		return cmd
@@ -278,14 +302,11 @@ func makeShellCmd(tokens []string) *ShellCmd {
 		return nil
 	}
 	cmd := exec.Command(exe, tokens[1:]...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 	return &ShellCmd{
-		RunFunc: cmd.Run,
-		Stdin:   os.Stdin,
-		Stdout:  os.Stdout,
-		Stderr:  os.Stderr,
+		cmd:    cmd,
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
 	}
 }
 
@@ -377,45 +398,40 @@ func main() {
 			leftTokens := tokens[:pipeIdx]
 			rightTokens := tokens[pipeIdx+1:]
 
-			pr, pw := io.Pipe()
 			leftCmd := makeShellCmd(leftTokens)
 			rightCmd := makeShellCmd(rightTokens)
-			if leftCmd == nil || rightCmd == nil {
-				continue
-			}
+			pr, pw := io.Pipe()
 			leftCmd.Stdout = pw
 			rightCmd.Stdin = pr
 			rightCmd.Stdout = os.Stdout
 			rightCmd.Stderr = os.Stderr
 
-			startLeft := make(chan struct{})
-			done := make(chan struct{})
-
+			if err := leftCmd.Start(); err != nil {
+				continue
+			}
+			if err := rightCmd.Start(); err != nil {
+				continue
+			}
 			go func() {
-				close(startLeft) // Signal that leftCmd is about to run
-				leftCmd.Run()
-				defer pw.Close()
-				close(done)
+				leftCmd.Wait()
+				pw.Close()
 			}()
-
-			<-startLeft // Wait for leftCmd goroutine to start
-			rightCmd.Run()
-			defer pr.Close()
-			<-done
+			rightCmd.Wait()
+			//pr.Close()
 			continue
 		}
 
+		// For single commands:
 		cmd := makeShellCmd(tokens)
 		if cmd == nil {
 			fmt.Fprintf(os.Stderr, "%s: command not found\n", tokens[0])
 			continue
 		}
-
-		// Set up output buffers for redirection
 		cmd.Stdout = &outBuf
 		cmd.Stderr = &errBuf
 		cmd.Stdin = os.Stdin
-		cmd.Run()
+		cmd.Start()
+		cmd.Wait()
 
 		// Handle redirection (only the first redirect operator found)
 		if redirectIdx != -1 && redirectIdx+1 < len(tokens) {
