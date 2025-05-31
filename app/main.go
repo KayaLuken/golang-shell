@@ -422,7 +422,13 @@ func main() {
 		}
 
 		// For single commands:
-		cmd := makeShellCmd(tokens)
+		cleanTokens := tokens
+		if redirectIdx != -1 && redirectIdx+1 < len(tokens) {
+			cleanTokens = tokens[:redirectIdx]
+		} else if errorRedirectIdx != -1 && errorRedirectIdx+1 < len(tokens) {
+			cleanTokens = tokens[:errorRedirectIdx]
+		}
+		cmd := makeShellCmd(cleanTokens)
 		if cmd == nil {
 			fmt.Fprintf(os.Stderr, "%s: command not found\n", tokens[0])
 			continue
