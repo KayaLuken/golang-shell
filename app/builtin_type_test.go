@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -10,7 +11,7 @@ func TestBuiltinType_Builtin(t *testing.T) {
 	var out bytes.Buffer
 	var errOut bytes.Buffer
 
-	// Simulate: type echo
+	// Simulate: type echo (builtin)
 	args := []string{"type", "echo"}
 	err := builtins["type"](args, &out, &errOut, nil)
 	if err != nil {
@@ -31,16 +32,25 @@ func TestBuiltinType_External(t *testing.T) {
 	var out bytes.Buffer
 	var errOut bytes.Buffer
 
-	// Simulate: type ls (assuming ls exists in PATH)
-	args := []string{"type", "ls"}
+	var cmdName string
+	if runtime.GOOS == "windows" {
+		cmdName = "where"
+	} else {
+		cmdName = "which"
+	}
+
+	args := []string{"type", cmdName}
 	err := builtins["type"](args, &out, &errOut, nil)
 	if err != nil {
 		t.Fatalf("type returned error: %v", err)
 	}
 
 	got := out.String()
-	if !strings.HasPrefix(got, "ls is ") {
-		t.Errorf("type output = %q, want prefix %q", got, "ls is ")
+	if strings.Contains(got, ": not found") {
+		t.Skipf("%q not found in PATH, skipping test", cmdName)
+	}
+	if !strings.HasPrefix(got, cmdName+" is ") {
+		t.Errorf("type output = %q, want prefix %q", got, cmdName+" is ")
 	}
 	if errOut.Len() != 0 {
 		t.Errorf("type wrote to stderr: %q", errOut.String())
