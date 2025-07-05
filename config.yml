@@ -4,8 +4,7 @@
 # unless you really need them.
 debug: true
 
-# Use this to change the Go version used to run your code
-# on Codecrafters.
+# Use this to change the Go version used to run your code remotely.
 #
 # Available versions: go-1.24
 language_pack: go-1.24

@@ -1,4 +1,4 @@
-module github.com/codecrafters-io/shell-starter-go
+module github.com/KayaLuken/golang-shell
 
 go 1.24.0
 
