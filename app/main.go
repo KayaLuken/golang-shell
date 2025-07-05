@@ -251,37 +251,37 @@ func getExternalCommands() []string {
 }
 
 type ShellCmd struct {
-	fn     func() error // For builtins
-	cmd    *exec.Cmd    // For externals
-	done   chan error
-	Stdin  io.Reader
-	Stdout io.Writer
-	Stderr io.Writer
+	builtinFn func() error // For builtins
+	execCmd   *exec.Cmd    // For externals
+	done      chan error
+	Stdin     io.Reader
+	Stdout    io.Writer
+	Stderr    io.Writer
 }
 
 func (c *ShellCmd) Start() error {
-	if c.fn != nil {
+	if c.builtinFn != nil {
 		c.done = make(chan error, 1)
 		go func() {
-			c.done <- c.fn()
+			c.done <- c.builtinFn()
 		}()
 		return nil
 	}
-	if c.cmd != nil {
-		c.cmd.Stdin = c.Stdin
-		c.cmd.Stdout = c.Stdout
-		c.cmd.Stderr = c.Stderr
-		return c.cmd.Start()
+	if c.execCmd != nil {
+		c.execCmd.Stdin = c.Stdin
+		c.execCmd.Stdout = c.Stdout
+		c.execCmd.Stderr = c.Stderr
+		return c.execCmd.Start()
 	}
 	return fmt.Errorf("no command to start")
 }
 
 func (c *ShellCmd) Wait() error {
-	if c.fn != nil {
+	if c.builtinFn != nil {
 		return <-c.done
 	}
-	if c.cmd != nil {
-		return c.cmd.Wait()
+	if c.execCmd != nil {
+		return c.execCmd.Wait()
 	}
 	return fmt.Errorf("no command to wait on")
 }
@@ -292,7 +292,7 @@ func makeShellCmd(tokens []string) *ShellCmd {
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		cmd.fn = func() error {
+		cmd.builtinFn = func() error {
 			return handler(tokens, cmd.Stdout, cmd.Stderr, cmd.Stdin)
 		}
 		return cmd
@@ -304,10 +304,10 @@ func makeShellCmd(tokens []string) *ShellCmd {
 	cmd := exec.Command(exe, tokens[1:]...)
 	cmd.Args[0] = tokens[0]
 	return &ShellCmd{
-		cmd:    cmd,
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
+		execCmd: cmd,
+		Stdin:   os.Stdin,
+		Stdout:  os.Stdout,
+		Stderr:  os.Stderr,
 	}
 }
 
