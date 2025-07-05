@@ -418,7 +418,6 @@ func main() {
 				pw.Close()
 			}()
 			rightCmd.Wait()
-			//pr.Close()
 			continue
 		}
 
