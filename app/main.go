@@ -286,7 +286,7 @@ func (c *ShellCmd) Wait() error {
 	return fmt.Errorf("no command to wait on")
 }
 
-func makeShellCmd(tokens []string) *ShellCmd {
+func newShellCmd(tokens []string) *ShellCmd {
 	if handler, ok := builtins[tokens[0]]; ok {
 		cmd := &ShellCmd{}
 		cmd.Stdin = os.Stdin
@@ -399,8 +399,8 @@ func main() {
 			leftTokens := tokens[:pipeIdx]
 			rightTokens := tokens[pipeIdx+1:]
 
-			leftCmd := makeShellCmd(leftTokens)
-			rightCmd := makeShellCmd(rightTokens)
+			leftCmd := newShellCmd(leftTokens)
+			rightCmd := newShellCmd(rightTokens)
 			pr, pw := io.Pipe()
 			leftCmd.Stdout = pw
 			rightCmd.Stdin = pr
@@ -428,7 +428,7 @@ func main() {
 		} else if errorRedirectIdx != -1 && errorRedirectIdx+1 < len(tokens) {
 			commandTokens = tokens[:errorRedirectIdx]
 		}
-		cmd := makeShellCmd(commandTokens)
+		cmd := newShellCmd(commandTokens)
 		if cmd == nil {
 			fmt.Fprintf(os.Stderr, "%s: command not found\n", tokens[0])
 			continue
